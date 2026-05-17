@@ -23,6 +23,7 @@ export function ListDetailPage() {
   const [senders, setSenders] = useState<any[]>([]);
   const [selectedSenderId, setSelectedSenderId] = useState<string>('');
   const [isSending, setIsSending] = useState(false);
+  const [schedulingType, setSchedulingType] = useState<'send' | 'draft' | 'schedule' | null>(null);
   const [sendProgress, setSendProgress] = useState({ current: 0, total: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -317,6 +318,7 @@ export function ListDetailPage() {
     if (!confirm(`Send campaign to ${withEmail.length} contacts using ${sender.email}?`)) return;
 
     setIsSending(true);
+    setSchedulingType('send');
     setSendProgress({ current: 0, total: withEmail.length });
 
     for (let i = 0; i < withEmail.length; i++) {
@@ -398,6 +400,7 @@ export function ListDetailPage() {
     }
 
     setIsSending(false);
+    setSchedulingType(null);
     setSelectedRows([]);
     alert(`Campaign complete! Sent ${withEmail.length} emails.`);
   };
@@ -427,35 +430,44 @@ export function ListDetailPage() {
     const schedules = distributeEmails(withEmail, senders, workingHours, 45);
     
     setIsSending(true);
+    setSchedulingType(type === 'draft' ? 'draft' : 'schedule');
+    setSendProgress({ current: 0, total: schedules.length });
+
     try {
-      // Update each contact
-      // To optimize, we can do this in chunks or Promise.all since they have different timestamps and sender_ids
-      const updates = schedules.map(async s => {
-        const contact = withEmail.find(c => c.id === s.contactId);
-        const currentData = (contact as any)?.data || {};
-        const nowIso = new Date().toISOString();
-        const { error } = await supabase.from('contacts').update({
-          status: type === 'draft' ? 'draft' : 'scheduled',
-          scheduled_send_at: type === 'draft' ? null : s.scheduled_send_at,
-          sender_id: s.sender_id,
-          data: {
-            ...currentData,
+      // Process database updates in chunks of 15 in parallel to prevent network connection exhaustion
+      const DB_CHUNK_SIZE = 15;
+      for (let i = 0; i < schedules.length; i += DB_CHUNK_SIZE) {
+        const chunk = schedules.slice(i, i + DB_CHUNK_SIZE);
+        await Promise.all(chunk.map(async s => {
+          const contact = withEmail.find(c => c.id === s.contactId);
+          const currentData = (contact as any)?.data || {};
+          const nowIso = new Date().toISOString();
+          const { error } = await supabase.from('contacts').update({
+            status: type === 'draft' ? 'draft' : 'scheduled',
+            scheduled_send_at: type === 'draft' ? null : s.scheduled_send_at,
             sender_id: s.sender_id,
-            is_draft: type === 'draft',
-            activity: {
-              ...(currentData.activity || {}),
-              scheduled_at: type === 'scheduled' ? nowIso : (currentData.activity?.scheduled_at || null),
-              drafted_at: type === 'draft' ? nowIso : (currentData.activity?.drafted_at || null)
+            data: {
+              ...currentData,
+              sender_id: s.sender_id,
+              is_draft: type === 'draft',
+              activity: {
+                ...(currentData.activity || {}),
+                scheduled_at: type === 'scheduled' ? nowIso : (currentData.activity?.scheduled_at || null),
+                drafted_at: type === 'draft' ? nowIso : (currentData.activity?.drafted_at || null)
+              }
             }
+          }).eq('id', s.contactId);
+          
+          if (error) {
+            throw new Error(`Failed to update contact ${contact?.email || s.contactId}: ${error.message}`);
           }
-        }).eq('id', s.contactId);
-        
-        if (error) {
-          throw new Error(`Failed to update contact ${contact?.email || s.contactId}: ${error.message}`);
+        }));
+
+        // For non-draft scheduling, update progress after database chunk completes
+        if (type !== 'draft') {
+          setSendProgress({ current: Math.min(i + DB_CHUNK_SIZE, schedules.length), total: schedules.length });
         }
-      });
-      
-      await Promise.all(updates);
+      }
 
       schedules.forEach(s => {
         const contact = withEmail.find(c => c.id === s.contactId);
@@ -538,6 +550,8 @@ export function ListDetailPage() {
           // BUG FIX 2.1: Use Promise.allSettled
           const results = await Promise.allSettled(chunk.map(s => createDraft(s)));
           allResults.push(...results);
+          
+          setSendProgress({ current: Math.min(i + chunkSize, schedules.length), total: schedules.length });
         }
         
         const failed = allResults.filter(r => r.status === 'rejected');
@@ -553,6 +567,7 @@ export function ListDetailPage() {
       alert('Failed to schedule emails: ' + err.message);
     } finally {
       setIsSending(false);
+      setSchedulingType(null);
     }
   };
 
@@ -980,20 +995,29 @@ export function ListDetailPage() {
           <button 
             onClick={() => handleSchedule('draft')}
             disabled={isSending}
-            className="flex items-center text-sm text-text-secondary hover:text-text-primary transition-colors gap-2"
+            className="flex items-center text-sm text-text-secondary hover:text-text-primary transition-colors gap-2 disabled:opacity-50"
           >
-            <Clock className="w-4 h-4 opacity-50" /> Add to Drafts
+            {isSending && schedulingType === 'draft' ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Drafting ({sendProgress.current}/{sendProgress.total})</>
+            ) : (
+              <><Clock className="w-4 h-4 opacity-50" /> Add to Drafts</>
+            )}
           </button>
           <button 
             onClick={() => handleSchedule('scheduled')}
             disabled={isSending}
-            className="flex items-center text-sm text-text-secondary hover:text-primary transition-colors gap-2"
+            className="flex items-center text-sm text-text-secondary hover:text-primary transition-colors gap-2 disabled:opacity-50"
           >
-            <Clock className="w-4 h-4" /> Schedule
+            {isSending && schedulingType === 'schedule' ? (
+              <><Loader2 className="w-4 h-4 animate-spin" /> Scheduling ({sendProgress.current}/{sendProgress.total})</>
+            ) : (
+              <><Clock className="w-4 h-4" /> Schedule</>
+            )}
           </button>
           <button 
             onClick={() => setIsMassEditModalOpen(true)}
-            className="flex items-center text-sm text-text-secondary hover:text-text-primary transition-colors gap-2"
+            disabled={isSending}
+            className="flex items-center text-sm text-text-secondary hover:text-text-primary transition-colors gap-2 disabled:opacity-50"
           >
             Mass Edit
           </button>
@@ -1002,7 +1026,7 @@ export function ListDetailPage() {
             disabled={isSending}
             className="flex items-center text-sm text-text-secondary hover:text-status-sent transition-colors gap-2 disabled:opacity-50"
           >
-            {isSending ? (
+            {isSending && schedulingType === 'send' ? (
               <><Loader2 className="w-4 h-4 animate-spin" /> Sending ({sendProgress.current}/{sendProgress.total})</>
             ) : (
               <><Play className="w-4 h-4" /> Send Now</>

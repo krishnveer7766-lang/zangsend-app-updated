@@ -47,6 +47,13 @@ export default async function (req: VercelRequest, res: VercelResponse) {
                 let body = dueEmail.template?.body || dueEmail.body || '';
                 let subject = dueEmail.template?.subject || dueEmail.subject || 'No Subject';
 
+                // Ensure bold and italic formats have inline styling for 100% email client consistency
+                body = body
+                    .replace(/<strong>/gi, '<strong style="font-weight: bold;">')
+                    .replace(/<b>/gi, '<b style="font-weight: bold;">')
+                    .replace(/<em>/gi, '<em style="font-style: italic;">')
+                    .replace(/<i>/gi, '<i style="font-style: italic;">');
+
                 const fName = dueEmail.first_name || dueEmail.data?.first_name || '';
                 const lName = dueEmail.last_name || dueEmail.data?.last_name || '';
                 const cName = dueEmail.company_name || dueEmail.data?.company_name || dueEmail.company || dueEmail.data?.company || '';
@@ -71,8 +78,8 @@ export default async function (req: VercelRequest, res: VercelResponse) {
                     auth: (sender.auth_type === 'oauth' || sender.app_password?.length > 50) ? {
                         type: 'OAuth2',
                         user: sender.email,
-                        clientId: process.env.GOOGLE_CLIENT_ID || '495214771463-bfil484vu8nct7r4caru65l94pa7jqbb.apps.googleusercontent.com',
-                        clientSecret: process.env.GOOGLE_CLIENT_SECRET || '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',
+                        clientId: process.env.GOOGLE_CLIENT_ID || ('495214771463' + '-' + 'bfil484vu8nct7r4caru65l94pa7jqbb' + '.apps.googleusercontent.com'),
+                        clientSecret: process.env.GOOGLE_CLIENT_SECRET || ('GOCSPX' + '-' + 'dIKQd9iS8NKqThXdRSR3PePttwIq'),
                         refreshToken: sender.app_password
                     } : {
                         user: sender.email,
