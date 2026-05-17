@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Calendar, Search, Clock, X, RotateCcw } from 'lucide-react';
+import { Calendar, Search, Clock, X, RotateCcw, AlertCircle, FileText, Loader2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { invokeNetlifyFunction } from '../lib/api';
 
 export function ScheduledPage() {
   const [scheduled, setScheduled] = useState<any[]>([]);
@@ -36,8 +37,8 @@ export function ScheduledPage() {
       const formatted = (contacts || [])
         .filter(c => {
           const s = (c.status || '').toLowerCase();
-          // Show everything except what is already finished (sent/bounced)
-          return s !== 'sent' && s !== 'bounced';
+          // Show scheduled, processing, or bounced (failed)
+          return s === 'scheduled' || s === 'processing' || s === 'bounced';
         })
         .map(c => ({
           ...c,
@@ -143,6 +144,98 @@ export function ScheduledPage() {
     void handleUnschedule([...selectedRows]);
   };
 
+  const [draftingId, setDraftingId] = useState<string | null>(null);
+
+  const handleCreateDraft = async (row: any) => {
+    if (draftingId) return;
+    setDraftingId(row.id);
+    try {
+      const senderId = row.sender_id || row.data?.sender_id;
+      if (!senderId) throw new Error("No sender account is linked to this contact.");
+
+      const { data: sender, error: senderErr } = await supabase
+        .from('senders')
+        .select('*')
+        .eq('id', senderId)
+        .single();
+
+      if (senderErr || !sender) throw new Error("Sender account not found.");
+
+      if (!row.template_id) throw new Error("No template is linked to this scheduled email.");
+      const { data: template, error: tempErr } = await supabase
+        .from('templates')
+        .select('*')
+        .eq('id', row.template_id)
+        .single();
+
+      if (tempErr || !template) throw new Error("Template not found.");
+
+      let subject = template.subject || 'No Subject';
+      let html = template.body || '';
+      
+      const fName = row.first_name || row.data?.first_name || '';
+      const lName = row.last_name || row.data?.last_name || '';
+      const cName = row.company_name || row.data?.company_name || row.company || row.data?.company || '';
+      const titleVal = row.title || row.data?.title || '';
+
+      const rep = (str: string) => str
+        .replace(/\{\{first_name\}\}/g, fName)
+        .replace(/\{\{last_name\}\}/g, lName)
+        .replace(/\{\{company_name\}\}/g, cName)
+        .replace(/\{\{company\}\}/g, cName)
+        .replace(/\{\{title\}\}/g, titleVal);
+
+      subject = rep(subject);
+      html = rep(html);
+
+      let attachmentUrl = undefined;
+      let attachmentFilename = undefined;
+      if (row.attachment_id) {
+        const { data: attachment } = await supabase
+          .from('attachments')
+          .select('*')
+          .eq('id', row.attachment_id)
+          .single();
+
+        if (attachment?.storage_path) {
+          const { data: signedUrlData } = await supabase.storage
+            .from('attachments')
+            .createSignedUrl(attachment.storage_path, 3600);
+          
+          attachmentUrl = signedUrlData?.signedUrl;
+          attachmentFilename = attachment.filename;
+        }
+      }
+
+      const res = await invokeNetlifyFunction('create-draft', {
+        to: row.email,
+        subject: subject,
+        html: html,
+        from_email: sender.email,
+        app_password: sender.app_password,
+        sender_name: sender.name || sender.sender_name || undefined,
+        attachment_url: attachmentUrl,
+        attachment_filename: attachmentFilename,
+        auth_type: sender.auth_type
+      });
+
+      if (res?.error) throw new Error(res.error);
+
+      // Update database status so it goes to History as sent/resolved
+      await supabase.from('contacts').update({
+        status: 'sent',
+        sent_at: new Date().toISOString()
+      }).eq('id', row.id);
+
+      alert(`Draft created successfully in Gmail for ${row.email}!`);
+      setScheduled(prev => prev.filter(s => s.id !== row.id));
+    } catch (err: any) {
+      alert("Failed to create draft: " + err.message);
+    } finally {
+      setDraftingId(null);
+    }
+  };
+
   const sortedScheduled = [...scheduled].sort((a, b) => {
     if (sortBy === 'time-asc') {
       return new Date(a.scheduled_send_at || 0).getTime() - new Date(b.scheduled_send_at || 0).getTime();
@@ -245,26 +338,54 @@ export function ScheduledPage() {
                       <button onClick={() => setEditingTimeId(null)} className="text-text-tertiary hover:underline text-xs">Cancel</button>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 group/time cursor-pointer" onClick={() => handleEditTime(row.id, row.scheduled_send_at)}>
+                    <div className="flex items-center gap-2 group/time cursor-pointer" onClick={() => row.status !== 'bounced' ? handleEditTime(row.id, row.scheduled_send_at) : undefined}>
                       <span className="text-status-finding">
                         {row.scheduled_send_at ? new Date(row.scheduled_send_at).toLocaleString() : 'Not set'}
                       </span>
-                      {row.scheduled_send_at && new Date(row.scheduled_send_at).getTime() < Date.now() && (
+                      {row.scheduled_send_at && new Date(row.scheduled_send_at).getTime() < Date.now() && row.status !== 'bounced' && (
                         <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-400">
                           Overdue
                         </span>
                       )}
-                      <span className="text-[10px] text-primary opacity-0 group-hover/time:opacity-100 transition-opacity">Edit</span>
+                      {row.status === 'bounced' && (
+                        <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full bg-red-500/15 text-red-400 font-sans flex items-center gap-1" title={row.data?.last_error || 'Failed to send'}>
+                          <AlertCircle className="w-3 h-3" /> Failed
+                        </span>
+                      )}
+                      {row.scheduled_send_at && row.status !== 'bounced' && <span className="text-[10px] text-primary opacity-0 group-hover/time:opacity-100 transition-opacity">Edit</span>}
                     </div>
                   )}
                 </td>
-                <td className="px-6 py-3 font-mono text-text-primary">{row.email}</td>
+                <td className="px-6 py-3 font-mono text-text-primary">
+                  {row.email}
+                  {row.status === 'bounced' && row.data?.last_error && (
+                    <p className="text-[10.5px] text-red-400/80 mt-0.5 italic max-w-xs truncate" title={row.data.last_error}>
+                      Error: {row.data.last_error}
+                    </p>
+                  )}
+                </td>
                 <td className="px-6 py-3 text-text-secondary">{row.first_name} {row.last_name}</td>
                 <td className="px-6 py-3 text-right">
-                  <button onClick={() => handleUnschedule([row.id])} className="text-text-tertiary hover:text-status-bounced transition-colors px-2 py-1 flex items-center justify-end w-full gap-2 opacity-0 group-hover:opacity-100">
-                    <X className="w-3.5 h-3.5" />
-                    Cancel
-                  </button>
+                  <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {row.status === 'bounced' && (
+                      <button 
+                        onClick={() => handleCreateDraft(row)} 
+                        disabled={draftingId === row.id}
+                        className="text-primary hover:text-primary-hover flex items-center gap-1 px-2 py-1 text-xs border border-primary/20 hover:border-primary bg-primary/5 hover:bg-primary/10 rounded transition-all"
+                      >
+                        {draftingId === row.id ? (
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                        ) : (
+                          <FileText className="w-3 h-3" />
+                        )}
+                        Add to Draft
+                      </button>
+                    )}
+                    <button onClick={() => handleUnschedule([row.id])} className="text-text-tertiary hover:text-status-bounced flex items-center gap-1 px-2 py-1 text-xs hover:bg-red-500/10 rounded transition-colors">
+                      <X className="w-3.5 h-3.5" />
+                      Cancel
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
