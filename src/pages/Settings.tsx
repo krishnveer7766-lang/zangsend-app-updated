@@ -256,9 +256,9 @@ export function SettingsPage() {
         <h1 className="text-xl font-display font-medium tracking-tight">Settings</h1>
       </div>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Sidebar */}
-        <div className="w-56 border-r border-border bg-surface p-4 space-y-1 overflow-y-auto">
+        <div className="w-full md:w-56 border-b md:border-b-0 md:border-r border-border bg-surface p-3 md:p-4 flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-y-auto flex-shrink-0 scrollbar-none">
           {([
             { id: 'account', icon: User, label: 'Account' },
             { id: 'apify', icon: Key, label: 'Apify Keys' },
@@ -272,7 +272,7 @@ export function SettingsPage() {
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`w-full flex items-center px-3 py-2 text-sm rounded-md transition-colors ${activeTab === id ? 'bg-primary-ghost text-primary-text' : 'text-text-secondary hover:text-text-primary hover:bg-elevated'}`}
+              className={`flex items-center px-3 py-2 text-sm rounded-md transition-colors flex-shrink-0 whitespace-nowrap ${activeTab === id ? 'bg-primary-ghost text-primary-text' : 'text-text-secondary hover:text-text-primary hover:bg-elevated'}`}
             >
               <Icon className="w-4 h-4 mr-3" /> {label}
             </button>
@@ -280,7 +280,7 @@ export function SettingsPage() {
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-8 max-w-3xl">
+        <div className="flex-1 overflow-y-auto p-4 md:p-8 max-w-3xl">
           {activeTab === 'account' && (
             <div className="space-y-6">
               <div>
