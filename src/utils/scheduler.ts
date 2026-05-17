@@ -4,6 +4,26 @@ export interface SchedulingResult {
   sender_id: string;
 }
 
+function parseTimeString(timeStr: string): { hour: number; minute: number } {
+  const match = (timeStr || "").match(/(\d+):(\d+)(?:\s*(am|pm))?/i);
+  if (!match) return { hour: 9, minute: 0 };
+  
+  let hour = parseInt(match[1], 10);
+  const minute = parseInt(match[2], 10);
+  const ampm = match[3]?.toLowerCase();
+  
+  if (ampm === 'pm' && hour < 12) {
+    hour += 12;
+  } else if (ampm === 'am' && hour === 12) {
+    hour = 0;
+  }
+  
+  return { 
+    hour: isNaN(hour) ? 9 : hour, 
+    minute: isNaN(minute) ? 0 : minute 
+  };
+}
+
 export function distributeEmails(
   contacts: any[],
   senders: any[],
@@ -13,8 +33,8 @@ export function distributeEmails(
   if (senders.length === 0 || contacts.length === 0) return [];
 
   const results: SchedulingResult[] = [];
-  const [startHour, startMin] = workingHours.start.split(':').map(Number);
-  const [endHour, endMin] = workingHours.end.split(':').map(Number);
+  const { hour: startHour, minute: startMin } = parseTimeString(workingHours?.start);
+  const { hour: endHour, minute: endMin } = parseTimeString(workingHours?.end);
 
   const startMinutes = startHour * 60 + startMin;
   const endMinutes = endHour * 60 + endMin;
