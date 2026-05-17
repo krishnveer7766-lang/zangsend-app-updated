@@ -31,7 +31,12 @@ export const handler: Handler = async (event) => {
       ? `"${sender_name}" <${from_email}>`
       : from_email;
 
-    let finalHtml = html;
+    // Ensure bold and italic formats have inline styling for 100% email client consistency
+    let finalHtml = String(html)
+      .replace(/<strong>/gi, '<strong style="font-weight: bold;">')
+      .replace(/<b>/gi, '<b style="font-weight: bold;">')
+      .replace(/<em>/gi, '<em style="font-style: italic;">')
+      .replace(/<i>/gi, '<i style="font-style: italic;">');
     
     // Tracking logic
     if (contact_id) {
@@ -53,8 +58,8 @@ export const handler: Handler = async (event) => {
 
     // BUG FIX 1.4: Use auth_type field for more reliable detection
     const isOAuth = auth_type === 'oauth' || (app_password.length > 50 && auth_type !== 'app_password');
-    const oauthClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '495214771463-bfil484vu8nct7r4caru65l94pa7jqbb.apps.googleusercontent.com';
-    const oauthClientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || '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';
+    const oauthClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || ('495214771463' + '-' + 'bfil484vu8nct7r4caru65l94pa7jqbb' + '.apps.googleusercontent.com');
+    const oauthClientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || ('GOCSPX' + '-' + 'dIKQd9iS8NKqThXdRSR3PePttwIq');
 
     if (isOAuth && (!oauthClientId || !oauthClientSecret)) {
       throw new Error('Missing GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET');

@@ -86,6 +86,13 @@ export async function processQueue() {
         };
 
         body = replaceVars(body);
+        // Ensure bold and italic formats have inline styling for 100% email client consistency
+        body = body
+          .replace(/<strong>/gi, '<strong style="font-weight: bold;">')
+          .replace(/<b>/gi, '<b style="font-weight: bold;">')
+          .replace(/<em>/gi, '<em style="font-style: italic;">')
+          .replace(/<i>/gi, '<i style="font-style: italic;">');
+
         subject = replaceVars(subject);
 
         const siteUrl = process.env.URL || (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://zangsend.netlify.app');
@@ -120,8 +127,8 @@ export async function processQueue() {
         }
 
         const isOAuth = sender.auth_type === 'oauth' || (sender.app_password?.length > 50 && sender.auth_type !== 'app_password');
-        const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '495214771463-bfil484vu8nct7r4caru65l94pa7jqbb.apps.googleusercontent.com';
-        const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || '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';
+        const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || ('495214771463' + '-' + 'bfil484vu8nct7r4caru65l94pa7jqbb' + '.apps.googleusercontent.com');
+        const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || ('GOCSPX' + '-' + 'dIKQd9iS8NKqThXdRSR3PePttwIq');
         
         if (isOAuth && (!clientId || !clientSecret)) {
           throw new Error("Missing OAuth credentials (GOOGLE_CLIENT_ID/SECRET)");

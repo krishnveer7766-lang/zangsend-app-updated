@@ -29,11 +29,18 @@ export const handler: Handler = async (event) => {
       ? `"${sender_name}" <${from_email}>`
       : from_email;
 
+    // Ensure bold and italic formats have inline styling for 100% email client consistency
+    const processedHtml = String(html)
+      .replace(/<strong>/gi, '<strong style="font-weight: bold;">')
+      .replace(/<b>/gi, '<b style="font-weight: bold;">')
+      .replace(/<em>/gi, '<em style="font-style: italic;">')
+      .replace(/<i>/gi, '<i style="font-style: italic;">');
+
     const mailOptions: any = {
       from: fromHeader,
       to,
       subject: subject || 'No Subject',
-      html,
+      html: processedHtml,
     };
 
     if (attachment_url) {
