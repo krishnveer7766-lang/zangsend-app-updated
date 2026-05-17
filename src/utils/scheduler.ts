@@ -28,15 +28,17 @@ export function distributeEmails(
   // Otherwise, use current time.
   const now = new Date();
   
+  const MIN_START_DELAY_MS = 3 * 60 * 1000; // Minimum 3 minutes ahead hamesha
+
   // Track state for each sender
   const senderStates = senders.map(s => ({
     id: s.id,
-    nextTime: now.getTime() + 10000, // Start 10s from now
+    nextTime: now.getTime() + MIN_START_DELAY_MS,
     sentToday: 0
   }));
 
   // Enforce a global minimum gap across all emails, regardless of sender.
-  let globalNextAllowedTime = now.getTime() + 10000;
+  let globalNextAllowedTime = now.getTime() + MIN_START_DELAY_MS;
 
   // Distribute contacts to senders
   for (let i = 0; i < contacts.length; i++) {
