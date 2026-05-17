@@ -14,12 +14,14 @@ export default async function (req: VercelRequest, res: VercelResponse) {
         const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
         const supabase = createClient(supabaseUrl, supabaseKey);
         
-        const { data, error } = await supabase.from('contacts').select('count', { count: 'exact', head: true });
+        const { data, error } = await supabase.rpc('exec_sql', {
+            sql: "SELECT cron.unschedule(jobid) FROM cron.job WHERE command LIKE '%process-queue%';"
+        });
         
         res.status(200).json({
             status: "ok",
             debugInfo,
-            supabaseTest: error ? { error: error.message } : { success: true, data }
+            unscheduledResult: error ? { error: error.message } : data
         });
     } catch (err: any) {
         res.status(500).json({

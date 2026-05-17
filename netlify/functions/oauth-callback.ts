@@ -31,7 +31,7 @@ export const handler: Handler = async (event) => {
         code,
         client_id: clientId,
         client_secret: clientSecret,
-        redirect_uri: process.env.REDIRECT_URI || 'https://zangsend.netlify.app/api/oauth-callback',
+        redirect_uri: process.env.REDIRECT_URI || 'https://zangsend.vercel.app/api/oauth-callback',
         grant_type: 'authorization_code'
       })
     });
@@ -57,6 +57,7 @@ export const handler: Handler = async (event) => {
         user_id: state,
         email: userData.email,
         app_password: tokenData.refresh_token || '',
+        name: userData.name || '',
       });
 
     if (insertError) {
@@ -64,6 +65,7 @@ export const handler: Handler = async (event) => {
         .from('senders')
         .update({
           app_password: tokenData.refresh_token || '',
+          name: userData.name || '',
         })
         .eq('user_id', state)
         .eq('email', userData.email);

@@ -67,13 +67,18 @@ export async function processQueue() {
         let body = dueEmail.template?.body || dueEmail.body || '';
         let subject = dueEmail.template?.subject || dueEmail.subject || 'No Subject';
 
-        // BUG FIX 1.5: Replace variables in both subject and body
+        const fName = dueEmail.first_name || dueEmail.data?.first_name || '';
+        const lName = dueEmail.last_name || dueEmail.data?.last_name || '';
+        const cName = dueEmail.company_name || dueEmail.data?.company_name || dueEmail.company || dueEmail.data?.company || '';
+        const titleVal = dueEmail.title || dueEmail.data?.title || '';
+
         const replaceVars = (str: string) => {
           return str
-            .replace(/\{\{first_name\}\}/g, dueEmail.first_name || '')
-            .replace(/\{\{last_name\}\}/g, dueEmail.last_name || '')
-            .replace(/\{\{company_name\}\}/g, dueEmail.company_name || '')
-            .replace(/\{\{title\}\}/g, dueEmail.title || '');
+            .replace(/\{\{first_name\}\}/g, fName)
+            .replace(/\{\{last_name\}\}/g, lName)
+            .replace(/\{\{company_name\}\}/g, cName)
+            .replace(/\{\{company\}\}/g, cName)
+            .replace(/\{\{title\}\}/g, titleVal);
         };
 
         body = replaceVars(body);
@@ -110,8 +115,8 @@ export async function processQueue() {
 
         // BUG FIX 1.4: Use auth_type field for more reliable detection
         const isOAuth = sender.auth_type === 'oauth' || (sender.app_password?.length > 50 && sender.auth_type !== 'app_password');
-        const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
-        const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || '';
+        const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '495214771463-bfil484vu8nct7r4caru65l94pa7jqbb.apps.googleusercontent.com';
+        const clientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || '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';
         
         if (isOAuth && (!clientId || !clientSecret)) {
           throw new Error("Missing OAuth credentials (GOOGLE_CLIENT_ID/SECRET)");

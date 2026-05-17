@@ -1,4 +1,4 @@
-import { processQueue } from './_queue';
+import { processQueue } from './_queue.js';
 import { VercelRequest, VercelResponse } from '@vercel/node';
 
 export default async function (req: VercelRequest, res: VercelResponse) {

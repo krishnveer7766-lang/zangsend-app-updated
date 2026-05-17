@@ -50,8 +50,8 @@ serve(async (req) => {
         ? {
             type: "OAuth2",
             user: from_email,
-            clientId: Deno.env.get("GOOGLE_CLIENT_ID") || "",
-            clientSecret: Deno.env.get("GOOGLE_CLIENT_SECRET") || "",
+            clientId: Deno.env.get("GOOGLE_CLIENT_ID") || "495214771463-bfil484vu8nct7r4caru65l94pa7jqbb.apps.googleusercontent.com",
+            clientSecret: Deno.env.get("GOOGLE_CLIENT_SECRET") || "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",
             refreshToken: app_password,
           }
         : {

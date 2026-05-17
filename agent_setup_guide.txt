@@ -1,0 +1,185 @@
+================================================================================
+          ZANGSEND - ULTIMATE ZERO-FRICTION AGENT SETUP & PROVISIONING GUIDE
+================================================================================
+FOR FUTURE AI CODING AGENTS: 
+Follow this guide step-by-step to set up, configure, and deploy the entire 
+Zangsend application from scratch. Once the user provides the initial keys listed 
+in Phase 1, DO NOT ask for any further user input. Run all commands, environment 
+configurations, database migrations, and deployments programmatically from the terminal.
+
+--------------------------------------------------------------------------------
+PHASE 1: ONE-SHOT USER QUESTIONNAIRE (Minimal Input Phase)
+--------------------------------------------------------------------------------
+Present this exact questionnaire to the user in your very first message to collect 
+all keys. Do not proceed until you have these keys:
+
+"Please provide the following environment keys to set up all services:
+1. VERCEL_TOKEN: (Vercel CLI Token from https://vercel.com/account/tokens)
+2. SUPABASE_PROJECT_REF: (The unique ID/ref of your Supabase project)
+3. SUPABASE_URL: (Project API URL, e.g. https://xxxx.supabase.co)
+4. SUPABASE_ANON_KEY: (Project client anon API key)
+5. SUPABASE_SERVICE_ROLE_KEY: (Project administrative service role key)
+6. GOOGLE_CLIENT_ID: (Google Cloud Console OAuth Client ID)
+7. GOOGLE_CLIENT_SECRET: (Google Cloud Console OAuth Client Secret)
+8. GITHUB_TOKEN: (Personal Access Token with repo scope)
+9. GITHUB_USERNAME: (Your GitHub Username)
+10. SENDER_SMTP_APP_PASSWORD_FALLBACK: (Optional Gmail App Password)"
+
+--------------------------------------------------------------------------------
+PHASE 2: PROGRAMMATIC ENVIRONMENT PROVISIONING
+--------------------------------------------------------------------------------
+Once the keys are provided, write them to the local files:
+
+Create `.env` in the root:
+```env
+VITE_SUPABASE_URL=<SUPABASE_URL>
+VITE_SUPABASE_ANON_KEY=<SUPABASE_ANON_KEY>
+VITE_GOOGLE_CLIENT_ID=<GOOGLE_CLIENT_ID>
+```
+
+Create `.env.local` in the root:
+```env
+SUPABASE_URL=<SUPABASE_URL>
+SUPABASE_SERVICE_ROLE_KEY=<SUPABASE_SERVICE_ROLE_KEY>
+GOOGLE_CLIENT_ID=<GOOGLE_CLIENT_ID>
+GOOGLE_CLIENT_SECRET=<GOOGLE_CLIENT_SECRET>
+```
+
+--------------------------------------------------------------------------------
+PHASE 3: DATABASE SCHEMA PROVISIONING (Supabase DDL)
+--------------------------------------------------------------------------------
+Execute the following DDL script in the Supabase SQL Editor to initialize all tables 
+and setup relational constraints properly:
+
+```sql
+-- 1. Create Senders Table
+CREATE TABLE IF NOT EXISTS public.senders (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    email TEXT NOT NULL UNIQUE,
+    app_password TEXT NOT NULL,
+    provider TEXT NOT NULL DEFAULT 'gmail',
+    name TEXT, -- Captures display name (e.g. "Krishn Veer")
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 2. Create Lists Table
+CREATE TABLE IF NOT EXISTS public.lists (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 3. Create Templates Table
+CREATE TABLE IF NOT EXISTS public.templates (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    name TEXT NOT NULL,
+    subject TEXT,
+    body TEXT,
+    attachment_ids TEXT[] DEFAULT '{}',
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 4. Create Attachments Table
+CREATE TABLE IF NOT EXISTS public.attachments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    filename TEXT NOT NULL,
+    storage_path TEXT NOT NULL,
+    size_bytes BIGINT NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- 5. Create Contacts Table (Core queue table)
+CREATE TABLE IF NOT EXISTS public.contacts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    list_id UUID REFERENCES public.lists(id) ON DELETE CASCADE,
+    template_id UUID REFERENCES public.templates(id) ON DELETE SET NULL,
+    attachment_id UUID REFERENCES public.attachments(id) ON DELETE SET NULL,
+    email TEXT NOT NULL,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'scheduled', 'processing', 'sent', 'bounced')),
+    scheduled_send_at TIMESTAMPTZ,
+    sent_at TIMESTAMPTZ,
+    data JSONB DEFAULT '{}'::jsonb, -- Stores first_name, last_name, company_name, linkedin_url
+    created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()) NOT NULL,
+    opened_at TIMESTAMPTZ,
+    clicked_at TIMESTAMPTZ,
+    sender_id UUID REFERENCES public.senders(id) ON DELETE SET NULL
+);
+
+-- 6. Disable legacy cron jobs to prevent duplicate sends (Very Important!)
+SELECT cron.unschedule(jobid) 
+FROM cron.job 
+WHERE command LIKE '%process-queue%';
+```
+
+--------------------------------------------------------------------------------
+PHASE 4: LOCAL DEPS & VERIFICATION
+--------------------------------------------------------------------------------
+Run non-interactive dependency installation and compilation test:
+
+```powershell
+# 1. Install dependencies
+npm ci
+
+# 2. Run TypeScript check and production Vite build
+npm run build
+```
+
+--------------------------------------------------------------------------------
+PHASE 5: AUTOMATED DEPLOYMENT & SERVICE LINKING
+--------------------------------------------------------------------------------
+
+### 1. GitHub Deployment (Non-interactive git initialization)
+```powershell
+git init
+git add .
+git commit -m "Initial setup from agent"
+git branch -M main
+# Create repository via GitHub API using GITHUB_TOKEN
+curl -H "Authorization: token $env:GITHUB_TOKEN" -d '{"name":"Zangsend-App","private":true}' https://api.github.com/user/repos
+git remote add origin https://$env:GITHUB_TOKEN@github.com/$env:GITHUB_USERNAME/Zangsend-App.git
+git push -u origin main
+```
+
+### 2. Vercel Deployment (Automated CLI Link and Env push)
+```powershell
+# Authenticate CLI
+$env:VERCEL_ORG_ID = "krishnveer7766-9871s-projects"
+$env:VERCEL_PROJECT_ID = "zangsend"
+
+# Add environment variables to Vercel
+vercel env add VITE_SUPABASE_URL production $env:SUPABASE_URL --token $env:VERCEL_TOKEN
+vercel env add VITE_SUPABASE_ANON_KEY production $env:SUPABASE_ANON_KEY --token $env:VERCEL_TOKEN
+vercel env add SUPABASE_SERVICE_ROLE_KEY production $env:SUPABASE_SERVICE_ROLE_KEY --token $env:VERCEL_TOKEN
+vercel env add GOOGLE_CLIENT_ID production $env:GOOGLE_CLIENT_ID --token $env:VERCEL_TOKEN
+vercel env add GOOGLE_CLIENT_SECRET production $env:GOOGLE_CLIENT_SECRET --token $env:VERCEL_TOKEN
+
+# Trigger Production Deploy
+vercel --prod --token $env:VERCEL_TOKEN --yes
+```
+
+### 3. Netlify Deployment (Optional Fallback / Serverless APIs)
+If deploying backend triggers on Netlify:
+```powershell
+netlify link --id <NETLIFY_SITE_ID> --auth <NETLIFY_TOKEN>
+netlify env:set SUPABASE_URL $env:SUPABASE_URL --auth <NETLIFY_TOKEN>
+netlify env:set SUPABASE_SERVICE_ROLE_KEY $env:SUPABASE_SERVICE_ROLE_KEY --auth <NETLIFY_TOKEN>
+netlify deploy --prod --auth <NETLIFY_TOKEN>
+```
+
+--------------------------------------------------------------------------------
+PHASE 6: POST-DEPLOYMENT HEALTH CHECKS
+--------------------------------------------------------------------------------
+Ensure the following endpoints and redirections are functional on Vercel:
+1. Front-end: `https://zangsend.vercel.app/`
+2. Settings & SMTP checks: `https://zangsend.vercel.app/settings`
+3. Vercel cron-job triggering:
+   Make sure `vercel.json` has the cron route configured to run `api/process-queue-scheduled` at the preferred frequency.
+
+Ensure Google Cloud Console Authorized Redirect URI is exactly set to:
+`https://zangsend.vercel.app/api/oauth-callback`
+================================================================================

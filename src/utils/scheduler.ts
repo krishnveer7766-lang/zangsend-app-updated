@@ -18,8 +18,10 @@ export function distributeEmails(
 
   const startMinutes = startHour * 60 + startMin;
   const endMinutes = endHour * 60 + endMin;
-
-  const MIN_GAP_MS = 90 * 1000; // 1.5 minutes gap minimum
+  const workingWindowMs = (endMinutes - startMinutes) * 60 * 1000;
+  
+  const MIN_GAP_MS = 4 * 60 * 1000; // 4 minutes gap minimum
+  const totalCapacityPerDay = senders.length * maxPerDayPerSender;
 
   // We'll calculate a target start time. If current time is before start, use today's start.
   // If current time is after end, use tomorrow's start.
@@ -71,9 +73,15 @@ export function distributeEmails(
       }
     }
 
-    // Now calculate the gap to spread remaining emails for this sender
-    // Use exactly 90 seconds minimum gap (not spread across window)
-    const gapMs = MIN_GAP_MS;
+    // Proportional gap calculation on a per-day basis
+    const dayIdx = Math.floor(i / totalCapacityPerDay);
+    const emailsThisDay = Math.min(contacts.length - dayIdx * totalCapacityPerDay, totalCapacityPerDay);
+    
+    // Proportional interval: spread the emails evenly across the working hours window
+    const dayGapMs = emailsThisDay > 1 ? (workingWindowMs / (emailsThisDay - 1)) : workingWindowMs;
+    
+    // Apply primary condition: minimum 4 minutes gap
+    const gapMs = Math.max(dayGapMs, MIN_GAP_MS);
 
     results.push({
       contactId: contact.id,

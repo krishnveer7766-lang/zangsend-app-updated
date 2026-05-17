@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, Key, MessageCircle, Users, CreditCard, Check, Eye, EyeOff, Loader2, CheckCircle, XCircle, Trash2, Clock, LogOut, User } from 'lucide-react';
+import { Mail, Key, MessageCircle, Users, CreditCard, Check, Eye, EyeOff, Loader2, CheckCircle, XCircle, Trash2, Clock, LogOut, User, Edit2, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export function SettingsPage() {
@@ -22,6 +22,8 @@ export function SettingsPage() {
   const [senders, setSenders] = useState<any[]>([]);
   const [loadingSenders, setLoadingSenders] = useState(false);
   const [sendersError, setSendersError] = useState<string>('');
+  const [editingSenderId, setEditingSenderId] = useState<string | null>(null);
+  const [editingSenderName, setEditingSenderName] = useState<string>('');
 
   // Scheduling State
   const [workingHours, setWorkingHours] = useState(() => {
@@ -59,7 +61,7 @@ export function SettingsPage() {
           "Missing VITE_GOOGLE_CLIENT_ID. Add it in Netlify Environment Variables and redeploy (Clear cache and deploy site)."
         );
       }
-      const redirectUri = `${window.location.origin}/.netlify/functions/oauth-callback`;
+      const redirectUri = `${window.location.origin}/api/oauth-callback`;
       const scopes = encodeURIComponent('https://mail.google.com/ email profile');
       const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scopes}&access_type=offline&prompt=consent&state=${user.id}`;
       
@@ -106,7 +108,6 @@ export function SettingsPage() {
   };
 
   const handleDeleteSender = async (id: string) => {
-
     if (!confirm('Remove this sender?')) return;
     try {
       const { error } = await supabase.from('senders').delete().eq('id', id);
@@ -115,6 +116,23 @@ export function SettingsPage() {
       setSenders(prev => prev.filter(s => s.id !== id));
     } catch (err: any) {
       alert('Error deleting sender: ' + err.message);
+    }
+  };
+
+  const handleUpdateSenderName = async (id: string, name: string) => {
+    try {
+      const { error } = await supabase
+        .from('senders')
+        .update({ name: name.trim() })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      setSenders(prev => prev.map(s => s.id === id ? { ...s, name: name.trim() } : s));
+      setEditingSenderId(null);
+      setEditingSenderName('');
+    } catch (err: any) {
+      alert('Error updating sender name: ' + err.message);
     }
   };
 
@@ -443,29 +461,77 @@ export function SettingsPage() {
                     <p className="text-sm text-text-secondary">No sender accounts connected yet.</p>
                   </div>
                 ) : (
-                  senders.map(sender => (
-                    <div key={sender.id} className="flex items-center justify-between p-4 border border-border bg-surface rounded-lg hover:border-border-soft transition-colors group">
-                      <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-full bg-primary-ghost flex items-center justify-center text-primary">
-                          <Mail className="w-5 h-5" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium text-text-primary">{sender.email}</p>
-                          <div className="flex items-center gap-2 mt-0.5">
-                            <span className="text-[10px] uppercase tracking-wider text-text-tertiary">Gmail SMTP</span>
-                            <span className="w-1 h-1 rounded-full bg-green-500"></span>
-                            <span className="text-[10px] text-green-500 uppercase tracking-wider">Verified</span>
+                  senders.map(sender => {
+                    const isEditing = editingSenderId === sender.id;
+                    return (
+                      <div key={sender.id} className="flex items-center justify-between p-4 border border-border bg-surface rounded-lg hover:border-border-soft transition-colors group">
+                        <div className="flex-1 flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-full bg-primary-ghost flex items-center justify-center text-primary flex-shrink-0">
+                            <Mail className="w-5 h-5" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            {isEditing ? (
+                              <div className="flex items-center gap-2 max-w-md">
+                                <input
+                                  type="text"
+                                  value={editingSenderName}
+                                  onChange={(e) => setEditingSenderName(e.target.value)}
+                                  className="input-field py-1 px-2 text-sm w-full font-sans"
+                                  placeholder="Recipient displays this name..."
+                                  autoFocus
+                                />
+                                <button
+                                  onClick={() => handleUpdateSenderName(sender.id, editingSenderName)}
+                                  className="p-1.5 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded transition-colors flex-shrink-0"
+                                  title="Save Name"
+                                >
+                                  <Check className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setEditingSenderId(null);
+                                    setEditingSenderName('');
+                                  }}
+                                  className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-elevated rounded transition-colors flex-shrink-0"
+                                  title="Cancel"
+                                >
+                                  <X className="w-4 h-4" />
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-text-primary truncate">
+                                  {sender.name || sender.email}
+                                </p>
+                                <button
+                                  onClick={() => {
+                                    setEditingSenderId(sender.id);
+                                    setEditingSenderName(sender.name || '');
+                                  }}
+                                  className="p-1 text-text-tertiary hover:text-primary rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                                  title="Edit Display Name"
+                                >
+                                  <Edit2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                            {sender.name && <p className="text-xs text-text-secondary truncate mt-0.5">{sender.email}</p>}
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className="text-[10px] uppercase tracking-wider text-text-tertiary">Gmail SMTP</span>
+                              <span className="w-1 h-1 rounded-full bg-green-500"></span>
+                              <span className="text-[10px] text-green-500 uppercase tracking-wider">Verified</span>
+                            </div>
                           </div>
                         </div>
+                        <button 
+                          onClick={() => handleDeleteSender(sender.id)}
+                          className="p-2 text-text-tertiary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all ml-4"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
                       </div>
-                      <button 
-                        onClick={() => handleDeleteSender(sender.id)}
-                        className="p-2 text-text-tertiary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
 

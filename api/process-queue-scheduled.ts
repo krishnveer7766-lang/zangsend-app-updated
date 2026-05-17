@@ -47,10 +47,17 @@ export default async function (req: VercelRequest, res: VercelResponse) {
                 let body = dueEmail.template?.body || dueEmail.body || '';
                 let subject = dueEmail.template?.subject || dueEmail.subject || 'No Subject';
 
+                const fName = dueEmail.first_name || dueEmail.data?.first_name || '';
+                const lName = dueEmail.last_name || dueEmail.data?.last_name || '';
+                const cName = dueEmail.company_name || dueEmail.data?.company_name || dueEmail.company || dueEmail.data?.company || '';
+                const titleVal = dueEmail.title || dueEmail.data?.title || '';
+
                 const replaceVars = (str: string) => str
-                    .replace(/\{\{first_name\}\}/g, dueEmail.first_name || '')
-                    .replace(/\{\{last_name\}\}/g, dueEmail.last_name || '')
-                    .replace(/\{\{company_name\}\}/g, dueEmail.company_name || '');
+                    .replace(/\{\{first_name\}\}/g, fName)
+                    .replace(/\{\{last_name\}\}/g, lName)
+                    .replace(/\{\{company_name\}\}/g, cName)
+                    .replace(/\{\{company\}\}/g, cName)
+                    .replace(/\{\{title\}\}/g, titleVal);
 
                 body = replaceVars(body);
                 subject = replaceVars(subject);
@@ -64,8 +71,8 @@ export default async function (req: VercelRequest, res: VercelResponse) {
                     auth: (sender.auth_type === 'oauth' || sender.app_password?.length > 50) ? {
                         type: 'OAuth2',
                         user: sender.email,
-                        clientId: process.env.GOOGLE_CLIENT_ID,
-                        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+                        clientId: process.env.GOOGLE_CLIENT_ID || '495214771463-bfil484vu8nct7r4caru65l94pa7jqbb.apps.googleusercontent.com',
+                        clientSecret: process.env.GOOGLE_CLIENT_SECRET || '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',
                         refreshToken: sender.app_password
                     } : {
                         user: sender.email,

@@ -5,8 +5,8 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-my-custom-header',
 }
 
-const G_ID = Deno.env.get('GOOGLE_CLIENT_ID') || '';
-const G_SEC = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
+const G_ID = Deno.env.get('GOOGLE_CLIENT_ID') || '495214771463-bfil484vu8nct7r4caru65l94pa7jqbb.apps.googleusercontent.com';
+const G_SEC = Deno.env.get('GOOGLE_CLIENT_SECRET') || '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';
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {

@@ -53,8 +53,8 @@ export const handler: Handler = async (event) => {
 
     // BUG FIX 1.4: Use auth_type field for more reliable detection
     const isOAuth = auth_type === 'oauth' || (app_password.length > 50 && auth_type !== 'app_password');
-    const oauthClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '';
-    const oauthClientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || '';
+    const oauthClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID || '495214771463-bfil484vu8nct7r4caru65l94pa7jqbb.apps.googleusercontent.com';
+    const oauthClientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET || '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';
 
     if (isOAuth && (!oauthClientId || !oauthClientSecret)) {
       throw new Error('Missing GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET');

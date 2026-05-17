@@ -109,8 +109,8 @@ serve(async (req) => {
 
         // 5. Send
         const isOAuth = sender.app_password.length > 50;
-        const g_cid = Deno.env.get('GOOGLE_CLIENT_ID') || '';
-        const g_csec = Deno.env.get('GOOGLE_CLIENT_SECRET') || '';
+        const g_cid = Deno.env.get('GOOGLE_CLIENT_ID') || '495214771463-bfil484vu8nct7r4caru65l94pa7jqbb.apps.googleusercontent.com';
+        const g_csec = Deno.env.get('GOOGLE_CLIENT_SECRET') || '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';
         if (isOAuth && (!g_cid || !g_csec)) {
           throw new Error('Missing GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET');
         }
