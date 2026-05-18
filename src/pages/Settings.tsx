@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Mail, Key, MessageCircle, Users, CreditCard, Check, Eye, EyeOff, Loader2, CheckCircle, XCircle, Trash2, Clock, LogOut, User, Edit2, X } from 'lucide-react';
+import { Mail, Key, MessageCircle, Users, CreditCard, Check, Eye, EyeOff, Loader2, CheckCircle, XCircle, Trash2, Clock, LogOut, User, Edit2, X, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export function SettingsPage() {
@@ -45,7 +45,6 @@ export function SettingsPage() {
       alert("Successfully connected Gmail account!");
       setActiveTab('sender');
       fetchSenders();
-      // Clean up URL
       window.history.replaceState({}, '', '/settings');
     }
   }, []);
@@ -58,7 +57,7 @@ export function SettingsPage() {
       const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
       if (!clientId) {
         throw new Error(
-          "Missing VITE_GOOGLE_CLIENT_ID. Add it in Netlify Environment Variables and redeploy (Clear cache and deploy site)."
+          "Missing VITE_GOOGLE_CLIENT_ID. Add it in Netlify Environment Variables and redeploy."
         );
       }
       const redirectUri = `${window.location.origin}/api/oauth-callback`;
@@ -163,7 +162,7 @@ export function SettingsPage() {
         const usage = data.data?.monthlyUsage?.totalCostUsd ?? 0;
         const plan = data.data?.plan?.id ?? 'FREE';
         setTestStatus('ok');
-        setTestMessage(`Connected as "${data.data?.username}" — Plan: ${plan} — Monthly usage: $${Number(usage).toFixed(2)}`);
+        setTestMessage(`Connected as "${data.data?.username}" — Plan: ${plan} — Usage: $${Number(usage).toFixed(2)}`);
       } else {
         setTestStatus('error');
         setTestMessage(`Invalid key: ${data.error?.message || 'Unknown error'}`);
@@ -175,7 +174,7 @@ export function SettingsPage() {
   };
 
   const handleResetAccountData = async () => {
-    if (!confirm('This will permanently delete all your app data (lists, contacts, templates, attachments, senders, schedule/history data). Continue?')) return;
+    if (!confirm('This will permanently delete all your app data. Continue?')) return;
     if (!confirm('Final confirmation: this cannot be undone. Reset all account data now?')) return;
 
     setResetting(true);
@@ -250,382 +249,437 @@ export function SettingsPage() {
     }
   };
 
+  const tabs = [
+    { id: 'account', icon: User, label: 'Account' },
+    { id: 'apify', icon: Key, label: 'Apify Keys' },
+    { id: 'sender', icon: Mail, label: 'Sender Email' },
+    { id: 'scheduling', icon: Clock, label: 'Scheduling' },
+    { id: 'telegram', icon: MessageCircle, label: 'Telegram' },
+    { id: 'team', icon: Users, label: 'Team' },
+    { id: 'billing', icon: CreditCard, label: 'Billing' },
+    { id: 'danger', icon: Trash2, label: 'Danger Zone' },
+  ];
+
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-shrink-0 px-6 py-4 border-b border-border">
-        <h1 className="text-xl font-display font-medium tracking-tight">Settings</h1>
+      {/* Header */}
+      <div className="flex-shrink-0 px-4 md:px-6 py-4 border-b border-border">
+        <div className="slide-up">
+          <h1 className="text-xl md:text-2xl font-display font-semibold tracking-tight">Settings</h1>
+          <p className="text-xs md:text-sm text-text-secondary mt-1">Manage your account and preferences</p>
+        </div>
       </div>
 
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
-        {/* Sidebar */}
-        <div className="w-full md:w-56 border-b md:border-b-0 md:border-r border-border bg-surface p-3 md:p-4 flex flex-row md:flex-col gap-1 overflow-x-auto md:overflow-y-auto flex-shrink-0 scrollbar-none">
-          {([
-            { id: 'account', icon: User, label: 'Account' },
-            { id: 'apify', icon: Key, label: 'Apify Keys' },
-            { id: 'sender', icon: Mail, label: 'Sender Email' },
-            { id: 'scheduling', icon: Clock, label: 'Scheduling' },
-            { id: 'telegram', icon: MessageCircle, label: 'Telegram Bot' },
-            { id: 'team', icon: Users, label: 'Team' },
-            { id: 'billing', icon: CreditCard, label: 'Billing' },
-            { id: 'danger', icon: Trash2, label: 'Danger Zone' },
-          ] as { id: string; icon: any; label: string }[]).map(({ id, icon: Icon, label }) => (
+        {/* Mobile Tab Navigation - Horizontal Scroll */}
+        <div className="flex-shrink-0 md:hidden border-b border-border bg-surface overflow-x-auto scrollbar-none">
+          <div className="flex gap-1 p-2 min-w-max">
+            {tabs.map(({ id, icon: Icon, label }) => (
+              <button
+                key={id}
+                onClick={() => setActiveTab(id)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium
+                          whitespace-nowrap transition-all duration-200 active:scale-95
+                          ${activeTab === id 
+                            ? 'bg-primary/10 text-primary' 
+                            : 'text-text-secondary hover:text-text-primary hover:bg-elevated'}`}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Desktop Sidebar */}
+        <div className="hidden md:flex w-56 border-r border-border bg-surface p-4 flex-col gap-1 overflow-y-auto flex-shrink-0">
+          {tabs.map(({ id, icon: Icon, label }) => (
             <button
               key={id}
               onClick={() => setActiveTab(id)}
-              className={`flex items-center px-3 py-2 text-sm rounded-md transition-colors flex-shrink-0 whitespace-nowrap ${activeTab === id ? 'bg-primary-ghost text-primary-text' : 'text-text-secondary hover:text-text-primary hover:bg-elevated'}`}
+              className={`flex items-center px-3 py-2.5 text-sm rounded-xl transition-all duration-200
+                        ${activeTab === id 
+                          ? 'bg-primary/10 text-primary' 
+                          : 'text-text-secondary hover:text-text-primary hover:bg-elevated'}`}
             >
               <Icon className="w-4 h-4 mr-3" /> {label}
             </button>
           ))}
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 md:p-8 max-w-3xl">
-          {activeTab === 'account' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-lg font-medium mb-1">Account</h2>
-                <p className="text-sm text-text-secondary">Manage your login session.</p>
-              </div>
-
-              <div className="p-5 border border-border bg-surface rounded-lg space-y-4">
-                <p className="text-sm text-text-secondary">
-                  Completely log out from your account on this device.
-                </p>
-                <button
-                  onClick={handleLogout}
-                  disabled={loggingOut}
-                  className="btn border border-border text-sm hover:bg-elevated"
-                >
-                  {loggingOut ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <LogOut className="w-4 h-4 mr-2" />}
-                  {loggingOut ? 'Logging out...' : 'Log Out'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'apify' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-lg font-medium mb-1">Apify API Keys</h2>
-                <p className="text-sm text-text-secondary">
-                  Used to find emails from LinkedIn profiles. The primary key is used first; fallback kicks in on quota limits.
-                </p>
-              </div>
-
-              <div className="p-5 border border-border bg-surface rounded-lg space-y-5">
-                {/* Primary */}
+        {/* Content Area */}
+        <div className="flex-1 overflow-y-auto p-4 md:p-8">
+          <div className="max-w-2xl mx-auto md:mx-0">
+            {/* Account Tab */}
+            {activeTab === 'account' && (
+              <div className="space-y-6 slide-up">
                 <div>
-                  <label className="label">
-                    Primary Key
-                    <span className="text-primary text-[10px] ml-2 uppercase tracking-wider font-medium">Active</span>
-                  </label>
-                  <div className="flex gap-2 mt-1">
-                    <div className="relative flex-1">
-                      <input
-                        type={showPrimary ? 'text' : 'password'}
-                        value={primaryKey}
-                        onChange={(e) => setPrimaryKey(e.target.value)}
-                        className="input-field w-full font-mono text-xs pr-10"
-                        placeholder="apify_api_..."
-                      />
-                      <button
-                        onClick={() => setShowPrimary(p => !p)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary"
-                      >
-                        {showPrimary ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                      </button>
-                    </div>
-                    <button
-                      onClick={handleTestKey}
-                      disabled={testStatus === 'testing'}
-                      className="btn border border-border hover:bg-elevated text-xs h-10 px-4 whitespace-nowrap"
-                    >
-                      {testStatus === 'testing' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Test Key'}
-                    </button>
-                  </div>
-                  {testMessage && (
-                    <p className={`text-xs mt-2 flex items-center gap-1.5 ${testStatus === 'ok' ? 'text-green-400' : 'text-red-400'}`}>
-                      {testStatus === 'ok' ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                      {testMessage}
-                    </p>
-                  )}
+                  <h2 className="text-lg font-semibold mb-1">Account</h2>
+                  <p className="text-sm text-text-secondary">Manage your login session</p>
                 </div>
 
-                {/* Fallback */}
-                <div>
-                  <label className="label">
-                    Fallback Key
-                    <span className="text-text-tertiary text-[10px] ml-2">Auto-used if primary hits quota</span>
-                  </label>
-                  <div className="relative mt-1">
-                    <input
-                      type={showFallback ? 'text' : 'password'}
-                      value={fallbackKey}
-                      onChange={(e) => setFallbackKey(e.target.value)}
-                      className="input-field w-full font-mono text-xs pr-10"
-                      placeholder="apify_api_... (optional)"
-                    />
-                    <button
-                      onClick={() => setShowFallback(p => !p)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary"
-                    >
-                      {showFallback ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 pt-2">
-                  <button onClick={handleSaveKeys} disabled={saving} className="btn btn-primary text-sm">
-                    {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                    Save Keys
+                <div className="card-animated p-5 space-y-4">
+                  <p className="text-sm text-text-secondary">
+                    Log out from your account on this device.
+                  </p>
+                  <button
+                    onClick={handleLogout}
+                    disabled={loggingOut}
+                    className="btn border border-border hover:bg-elevated w-full md:w-auto"
+                  >
+                    {loggingOut ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <LogOut className="w-4 h-4 mr-2" />
+                    )}
+                    {loggingOut ? 'Logging out...' : 'Log Out'}
                   </button>
-                  {saveResult === 'success' && (
-                    <span className="flex items-center gap-1.5 text-sm text-green-400">
-                      <CheckCircle className="w-4 h-4" /> Saved.
-                    </span>
-                  )}
-                  {saveResult === 'error' && (
-                    <span className="flex items-center gap-1.5 text-sm text-red-400">
-                      <XCircle className="w-4 h-4" /> Failed to save.
-                    </span>
-                  )}
                 </div>
               </div>
+            )}
 
-              <div className="p-4 bg-elevated border border-border rounded-lg text-xs text-text-secondary space-y-1.5">
-                <p className="font-medium text-text-primary mb-2">How email finding works</p>
-                <p>1. Email finding runs through your deployed Supabase Edge Function.</p>
-                <p>2. It uses a waterfall of LinkedIn email actors and returns the first valid email found.</p>
-                <p>3. Keep your Apify tokens set as Supabase function secrets for production reliability.</p>
-                <p>4. The free Apify plan gives about $5/month in usage credits.</p>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'telegram' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-lg font-medium mb-1">Telegram Bot Configuration</h2>
-                <p className="text-sm text-text-secondary">Connect a Telegram bot to control ZangSends from your phone.</p>
-              </div>
-              <div className="p-5 border border-border bg-surface rounded-lg space-y-4">
+            {/* Apify Tab */}
+            {activeTab === 'apify' && (
+              <div className="space-y-6 slide-up">
                 <div>
-                  <label className="label">Bot Token</label>
-                  <p className="text-xs text-text-secondary mb-2">Obtain from @BotFather on Telegram.</p>
-                  <div className="flex gap-2">
-                    <input type="password" value={botToken} onChange={(e) => setBotToken(e.target.value)} className="input-field flex-1 font-mono" />
-                    <button className="btn btn-primary">Save & Validate</button>
-                  </div>
+                  <h2 className="text-lg font-semibold mb-1">Apify API Keys</h2>
+                  <p className="text-sm text-text-secondary">
+                    Used to find emails from LinkedIn profiles
+                  </p>
                 </div>
-                {botToken && (
-                  <div className="flex items-center gap-2 bg-primary-ghost border border-primary/20 rounded p-3 text-sm">
-                    <Check className="w-4 h-4 text-primary" />
-                    <span>Webhook active. You can now message your bot on Telegram.</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
 
-          {activeTab === 'sender' && (
-            <div className="space-y-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-lg font-medium mb-1">Sender Accounts</h2>
-                  <p className="text-sm text-text-secondary">Connect Gmail accounts securely via Google OAuth to send campaigns.</p>
-                </div>
-                <button 
-                  onClick={handleGoogleSignIn}
-                  className="btn bg-white hover:bg-gray-50 text-gray-900 text-xs h-9 px-4 font-medium border border-gray-200"
-                >
-                  <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-4 h-4 mr-2" />
-                  Sign in with Google
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {sendersError && (
-                  <div className="p-3 border border-red-500/20 bg-red-500/5 rounded-lg text-xs text-red-300">
-                    Failed to load senders: {sendersError}
-                  </div>
-                )}
-                {loadingSenders ? (
-                  <div className="py-10 text-center text-text-tertiary">
-                    <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 opacity-50" />
-                    Loading accounts...
-                  </div>
-                ) : senders.length === 0 ? (
-                  <div className="py-12 border border-dashed border-border rounded-lg text-center">
-                    <Mail className="w-8 h-8 text-text-tertiary mx-auto mb-3 opacity-20" />
-                    <p className="text-sm text-text-secondary">No sender accounts connected yet.</p>
-                  </div>
-                ) : (
-                  senders.map(sender => {
-                    const isEditing = editingSenderId === sender.id;
-                    return (
-                      <div key={sender.id} className="flex items-center justify-between p-4 border border-border bg-surface rounded-lg hover:border-border-soft transition-colors group">
-                        <div className="flex-1 flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-full bg-primary-ghost flex items-center justify-center text-primary flex-shrink-0">
-                            <Mail className="w-5 h-5" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            {isEditing ? (
-                              <div className="flex items-center gap-2 max-w-md">
-                                <input
-                                  type="text"
-                                  value={editingSenderName}
-                                  onChange={(e) => setEditingSenderName(e.target.value)}
-                                  className="input-field py-1 px-2 text-sm w-full font-sans"
-                                  placeholder="Recipient displays this name..."
-                                  autoFocus
-                                />
-                                <button
-                                  onClick={() => handleUpdateSenderName(sender.id, editingSenderName)}
-                                  className="p-1.5 text-green-400 hover:text-green-300 hover:bg-green-500/10 rounded transition-colors flex-shrink-0"
-                                  title="Save Name"
-                                >
-                                  <Check className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    setEditingSenderId(null);
-                                    setEditingSenderName('');
-                                  }}
-                                  className="p-1.5 text-text-tertiary hover:text-text-primary hover:bg-elevated rounded transition-colors flex-shrink-0"
-                                  title="Cancel"
-                                >
-                                  <X className="w-4 h-4" />
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <p className="text-sm font-medium text-text-primary truncate">
-                                  {sender.name || sender.email}
-                                </p>
-                                <button
-                                  onClick={() => {
-                                    setEditingSenderId(sender.id);
-                                    setEditingSenderName(sender.name || '');
-                                  }}
-                                  className="p-1 text-text-tertiary hover:text-primary rounded opacity-0 group-hover:opacity-100 transition-opacity"
-                                  title="Edit Display Name"
-                                >
-                                  <Edit2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            )}
-                            {sender.name && <p className="text-xs text-text-secondary truncate mt-0.5">{sender.email}</p>}
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[10px] uppercase tracking-wider text-text-tertiary">Gmail SMTP</span>
-                              <span className="w-1 h-1 rounded-full bg-green-500"></span>
-                              <span className="text-[10px] text-green-500 uppercase tracking-wider">Verified</span>
-                            </div>
-                          </div>
-                        </div>
-                        <button 
-                          onClick={() => handleDeleteSender(sender.id)}
-                          className="p-2 text-text-tertiary hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all ml-4"
+                <div className="card-animated p-5 space-y-5">
+                  {/* Primary Key */}
+                  <div>
+                    <label className="label flex items-center gap-2">
+                      Primary Key
+                      <span className="text-primary text-[10px] px-1.5 py-0.5 rounded bg-primary/10 font-semibold">Active</span>
+                    </label>
+                    <div className="flex flex-col md:flex-row gap-2 mt-1">
+                      <div className="relative flex-1">
+                        <input
+                          type={showPrimary ? 'text' : 'password'}
+                          value={primaryKey}
+                          onChange={(e) => setPrimaryKey(e.target.value)}
+                          className="input-field w-full font-mono text-sm pr-12"
+                          placeholder="apify_api_..."
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPrimary(p => !p)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-text-tertiary hover:text-text-primary rounded transition-colors"
                         >
-                          <Trash2 className="w-4 h-4" />
+                          {showPrimary ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
                         </button>
                       </div>
-                    );
-                  })
-                )}
-              </div>
-
-              <div className="p-4 bg-blue-500/5 border border-blue-500/10 rounded-lg text-xs text-blue-300/80 space-y-1.5">
-                <p className="font-medium text-blue-200 mb-2 flex items-center gap-2">
-                  <CheckCircle className="w-3.5 h-3.5" /> Setting up Gmail App Passwords
-                </p>
-                <p>1. Go to your <strong>Google Account</strong> settings.</p>
-                <p>2. Navigate to <strong>Security</strong> and enable <strong>2-Step Verification</strong>.</p>
-                <p>3. Search for <strong>"App Passwords"</strong> in the search bar at the top.</p>
-                <p>4. Create a new app password (e.g., name it "ZangSends") and copy the 16-character code.</p>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'scheduling' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-lg font-medium mb-1">Working Hours (IST)</h2>
-                <p className="text-sm text-text-secondary">Set the daily window during which scheduled emails will be sent.</p>
-              </div>
-
-              <div className="p-5 border border-border bg-surface rounded-lg space-y-5">
-                <div className="flex items-center gap-4">
-                  <div>
-                    <label className="label">Start Time</label>
-                    <input 
-                      type="time" 
-                      value={workingHours.start}
-                      onChange={(e) => setWorkingHours({...workingHours, start: e.target.value})}
-                      className="input-field" 
-                    />
+                      <button
+                        onClick={handleTestKey}
+                        disabled={testStatus === 'testing'}
+                        className="btn border border-border hover:bg-elevated whitespace-nowrap"
+                      >
+                        {testStatus === 'testing' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Test Key'}
+                      </button>
+                    </div>
+                    {testMessage && (
+                      <p className={`text-xs mt-2 flex items-center gap-1.5 ${testStatus === 'ok' ? 'text-primary' : 'text-status-bounced'}`}>
+                        {testStatus === 'ok' ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                        {testMessage}
+                      </p>
+                    )}
                   </div>
+
+                  {/* Fallback Key */}
                   <div>
-                    <label className="label">End Time</label>
-                    <input 
-                      type="time" 
-                      value={workingHours.end}
-                      onChange={(e) => setWorkingHours({...workingHours, end: e.target.value})}
-                      className="input-field" 
-                    />
+                    <label className="label">
+                      Fallback Key
+                      <span className="text-text-tertiary text-[10px] ml-2 font-normal">Auto-used if primary hits quota</span>
+                    </label>
+                    <div className="relative mt-1">
+                      <input
+                        type={showFallback ? 'text' : 'password'}
+                        value={fallbackKey}
+                        onChange={(e) => setFallbackKey(e.target.value)}
+                        className="input-field w-full font-mono text-sm pr-12"
+                        placeholder="apify_api_... (optional)"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowFallback(p => !p)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-text-tertiary hover:text-text-primary rounded transition-colors"
+                      >
+                        {showFallback ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-2">
+                    <button onClick={handleSaveKeys} disabled={saving} className="btn btn-primary">
+                      {saving && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Save Keys
+                    </button>
+                    {saveResult === 'success' && (
+                      <span className="flex items-center gap-1.5 text-sm text-primary spring-in">
+                        <CheckCircle className="w-4 h-4" /> Saved!
+                      </span>
+                    )}
+                    {saveResult === 'error' && (
+                      <span className="flex items-center gap-1.5 text-sm text-status-bounced spring-in">
+                        <XCircle className="w-4 h-4" /> Failed
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div className="flex items-center gap-3 pt-2">
+                <div className="card-animated p-4 bg-elevated/50 text-xs text-text-secondary space-y-1.5">
+                  <p className="font-medium text-text-primary mb-2">How email finding works</p>
+                  <p>1. Email finding runs through your Supabase Edge Function.</p>
+                  <p>2. It uses a waterfall of LinkedIn email actors.</p>
+                  <p>3. The free Apify plan gives about $5/month in credits.</p>
+                </div>
+              </div>
+            )}
+
+            {/* Telegram Tab */}
+            {activeTab === 'telegram' && (
+              <div className="space-y-6 slide-up">
+                <div>
+                  <h2 className="text-lg font-semibold mb-1">Telegram Bot</h2>
+                  <p className="text-sm text-text-secondary">Control ZangSends from your phone</p>
+                </div>
+                <div className="card-animated p-5 space-y-4">
+                  <div>
+                    <label className="label">Bot Token</label>
+                    <p className="text-xs text-text-secondary mb-2">Obtain from @BotFather on Telegram</p>
+                    <div className="flex flex-col md:flex-row gap-2">
+                      <input 
+                        type="password" 
+                        value={botToken} 
+                        onChange={(e) => setBotToken(e.target.value)} 
+                        className="input-field flex-1 font-mono text-sm" 
+                      />
+                      <button className="btn btn-primary">Save</button>
+                    </div>
+                  </div>
+                  {botToken && (
+                    <div className="flex items-center gap-2 bg-primary/10 border border-primary/20 rounded-xl p-3 text-sm spring-in">
+                      <Check className="w-4 h-4 text-primary" />
+                      <span className="text-text-primary">Webhook active. Message your bot on Telegram.</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Sender Tab */}
+            {activeTab === 'sender' && (
+              <div className="space-y-6 slide-up">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <h2 className="text-lg font-semibold mb-1">Sender Accounts</h2>
+                    <p className="text-sm text-text-secondary">Connect Gmail accounts via Google OAuth</p>
+                  </div>
+                  <button 
+                    onClick={handleGoogleSignIn}
+                    className="btn bg-white hover:bg-gray-100 text-gray-900 border border-gray-200 w-full md:w-auto"
+                  >
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google" className="w-4 h-4 mr-2" />
+                    Sign in with Google
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {sendersError && (
+                    <div className="p-4 border border-status-bounced/20 bg-status-bounced/5 rounded-xl text-sm text-status-bounced spring-in">
+                      Failed to load senders: {sendersError}
+                    </div>
+                  )}
+                  {loadingSenders ? (
+                    <div className="py-12 text-center text-text-tertiary">
+                      <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 opacity-50" />
+                      Loading accounts...
+                    </div>
+                  ) : senders.length === 0 ? (
+                    <div className="py-12 border border-dashed border-border rounded-xl text-center">
+                      <Mail className="w-8 h-8 text-text-tertiary mx-auto mb-3 opacity-20" />
+                      <p className="text-sm text-text-secondary">No sender accounts connected yet.</p>
+                    </div>
+                  ) : (
+                    senders.map(sender => {
+                      const isEditing = editingSenderId === sender.id;
+                      return (
+                        <div key={sender.id} className="card-animated p-4">
+                          <div className="flex items-center gap-4">
+                            <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                              <Mail className="w-5 h-5" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              {isEditing ? (
+                                <div className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={editingSenderName}
+                                    onChange={(e) => setEditingSenderName(e.target.value)}
+                                    className="input-field py-2 px-3 text-sm flex-1"
+                                    placeholder="Display name..."
+                                    autoFocus
+                                  />
+                                  <button
+                                    onClick={() => handleUpdateSenderName(sender.id, editingSenderName)}
+                                    className="p-2 text-primary hover:bg-primary/10 rounded-xl transition-colors"
+                                  >
+                                    <Check className="w-5 h-5" />
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      setEditingSenderId(null);
+                                      setEditingSenderName('');
+                                    }}
+                                    className="p-2 text-text-tertiary hover:text-text-primary hover:bg-elevated rounded-xl transition-colors"
+                                  >
+                                    <X className="w-5 h-5" />
+                                  </button>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="flex items-center gap-2">
+                                    <p className="font-medium text-text-primary truncate">
+                                      {sender.name || sender.email}
+                                    </p>
+                                    <button
+                                      onClick={() => {
+                                        setEditingSenderId(sender.id);
+                                        setEditingSenderName(sender.name || '');
+                                      }}
+                                      className="p-1.5 text-text-tertiary hover:text-primary rounded-lg transition-colors"
+                                    >
+                                      <Edit2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                  {sender.name && <p className="text-xs text-text-secondary truncate mt-0.5">{sender.email}</p>}
+                                  <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] uppercase tracking-wider text-text-tertiary">Gmail SMTP</span>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-primary"></span>
+                                    <span className="text-[10px] text-primary uppercase tracking-wider font-medium">Verified</span>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                            {!isEditing && (
+                              <button 
+                                onClick={() => handleDeleteSender(sender.id)}
+                                className="p-2.5 text-text-tertiary hover:text-status-bounced hover:bg-status-bounced/10 rounded-xl transition-all"
+                              >
+                                <Trash2 className="w-5 h-5" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+
+                <div className="card-animated p-4 bg-status-opened/5 border-status-opened/20 text-xs text-status-opened/80 space-y-1.5">
+                  <p className="font-medium text-status-opened mb-2 flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4" /> Setting up Gmail App Passwords
+                  </p>
+                  <p>1. Go to your Google Account settings</p>
+                  <p>2. Navigate to Security and enable 2-Step Verification</p>
+                  <p>3. Search for &quot;App Passwords&quot;</p>
+                  <p>4. Create a new app password and copy the 16-character code</p>
+                </div>
+              </div>
+            )}
+
+            {/* Scheduling Tab */}
+            {activeTab === 'scheduling' && (
+              <div className="space-y-6 slide-up">
+                <div>
+                  <h2 className="text-lg font-semibold mb-1">Working Hours (IST)</h2>
+                  <p className="text-sm text-text-secondary">Set the daily window for sending scheduled emails</p>
+                </div>
+
+                <div className="card-animated p-5 space-y-5">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="label">Start Time</label>
+                      <input 
+                        type="time" 
+                        value={workingHours.start}
+                        onChange={(e) => setWorkingHours({...workingHours, start: e.target.value})}
+                        className="input-field" 
+                      />
+                    </div>
+                    <div>
+                      <label className="label">End Time</label>
+                      <input 
+                        type="time" 
+                        value={workingHours.end}
+                        onChange={(e) => setWorkingHours({...workingHours, end: e.target.value})}
+                        className="input-field" 
+                      />
+                    </div>
+                  </div>
+
                   <button 
                     onClick={() => {
                       localStorage.setItem('zangsend_working_hours', JSON.stringify(workingHours));
                       alert('Working hours saved!');
                     }} 
-                    className="btn btn-primary text-sm"
+                    className="btn btn-primary w-full md:w-auto"
                   >
                     Save Settings
                   </button>
                 </div>
-              </div>
 
-              <div className="p-4 bg-elevated border border-border rounded-lg text-xs text-text-secondary space-y-1.5">
-                <p className="font-medium text-text-primary mb-2">How Scheduling Works</p>
-                <p>1. When you schedule an email campaign, the send times are <strong>distributed evenly</strong> between the start and end times you configure here.</p>
-                <p>2. The scheduler will automatically switch between your connected Gmail accounts.</p>
-                <p>3. To protect your accounts from being marked as spam, it will limit each account to <strong>45 emails per day</strong>.</p>
+                <div className="card-animated p-4 bg-elevated/50 text-xs text-text-secondary space-y-1.5">
+                  <p className="font-medium text-text-primary mb-2">How Scheduling Works</p>
+                  <p>1. Send times are distributed evenly between start and end times</p>
+                  <p>2. The scheduler switches between connected Gmail accounts</p>
+                  <p>3. Each account is limited to 45 emails per day</p>
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {(activeTab === 'team' || activeTab === 'billing') && (
-            <div className="flex flex-col items-center justify-center py-20 text-text-secondary">
-              <p>This settings panel is under construction.</p>
-            </div>
-          )}
-
-          {activeTab === 'danger' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="text-lg font-medium mb-1">Danger Zone</h2>
-                <p className="text-sm text-text-secondary">Permanently remove all app data while keeping your login account.</p>
+            {/* Team & Billing */}
+            {(activeTab === 'team' || activeTab === 'billing') && (
+              <div className="flex flex-col items-center justify-center py-20 text-text-secondary slide-up">
+                <div className="w-16 h-16 rounded-2xl bg-elevated flex items-center justify-center mb-4">
+                  {activeTab === 'team' ? <Users className="w-8 h-8 text-text-tertiary" /> : <CreditCard className="w-8 h-8 text-text-tertiary" />}
+                </div>
+                <p className="text-lg font-medium text-text-primary mb-1">Coming Soon</p>
+                <p className="text-sm">This feature is under development</p>
               </div>
+            )}
 
-              <div className="p-5 border border-red-500/30 bg-red-500/5 rounded-lg space-y-4">
-                <p className="text-sm text-red-300">
-                  This deletes: lists, contacts, templates, scheduled/sent history, senders, attachments, and app settings data.
-                </p>
-                <button
-                  onClick={handleResetAccountData}
-                  disabled={resetting}
-                  className="btn border border-red-500/40 text-red-300 hover:bg-red-500/10 text-sm"
-                >
-                  {resetting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
-                  {resetting ? 'Resetting...' : 'Reset Account Data'}
-                </button>
+            {/* Danger Zone */}
+            {activeTab === 'danger' && (
+              <div className="space-y-6 slide-up">
+                <div>
+                  <h2 className="text-lg font-semibold mb-1 text-status-bounced">Danger Zone</h2>
+                  <p className="text-sm text-text-secondary">Permanently remove all app data</p>
+                </div>
+
+                <div className="card-animated p-5 border-status-bounced/30 bg-status-bounced/5 space-y-4">
+                  <p className="text-sm text-status-bounced/80">
+                    This deletes: lists, contacts, templates, scheduled/sent history, senders, attachments, and app settings.
+                  </p>
+                  <button
+                    onClick={handleResetAccountData}
+                    disabled={resetting}
+                    className="btn btn-destructive w-full md:w-auto"
+                  >
+                    {resetting ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-4 h-4 mr-2" />
+                    )}
+                    {resetting ? 'Resetting...' : 'Reset Account Data'}
+                  </button>
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
     </div>

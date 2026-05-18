@@ -1,6 +1,6 @@
 import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Upload, MoreVertical, Search, X, ChevronRight } from 'lucide-react';
+import { Upload, MoreVertical, Search, X, ChevronRight, Plus, Users } from 'lucide-react';
 import Papa from 'papaparse';
 import { useLists } from '../hooks/useLists';
 
@@ -77,7 +77,6 @@ export function ListsPage() {
       }
     });
     
-    // Reset input
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -117,7 +116,6 @@ export function ListsPage() {
         };
       });
       
-      // Insert in chunks to avoid payload too large
       const chunkSize = 100;
       for (let i = 0; i < contactsWithUser.length; i += chunkSize) {
         const { error } = await supabase.from('contacts').insert(contactsWithUser.slice(i, i + chunkSize));
@@ -146,13 +144,15 @@ export function ListsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
-        <div>
-          <h1 className="text-xl font-display font-medium tracking-tight">Lists</h1>
-          <p className="text-xs text-text-secondary mt-1">Manage and segment your contact lists.</p>
-        </div>
-        <div className="flex space-x-3">
+      {/* Header - Mobile Optimized */}
+      <div className="flex-shrink-0 px-4 md:px-6 py-4 border-b border-border">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="slide-up">
+            <h1 className="text-xl md:text-2xl font-display font-semibold tracking-tight">Lists</h1>
+            <p className="text-xs md:text-sm text-text-secondary mt-1">Manage your contact lists</p>
+          </div>
+          
+          {/* Desktop Upload Button */}
           <input 
             type="file" 
             accept=".csv" 
@@ -161,7 +161,7 @@ export function ListsPage() {
             className="hidden" 
           />
           <button 
-            className="btn btn-primary flex items-center space-x-2"
+            className="btn btn-primary hidden md:flex items-center gap-2 slide-up"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
           >
@@ -171,58 +171,82 @@ export function ListsPage() {
         </div>
       </div>
 
-      {/* Toolbar */}
-      <div className="flex-shrink-0 flex items-center px-6 py-3 border-b border-border space-x-4 bg-surface">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+      {/* Search Bar - Mobile Optimized */}
+      <div className="flex-shrink-0 px-4 md:px-6 py-3 border-b border-border bg-surface/50">
+        <div className="relative max-w-full md:max-w-sm">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
           <input 
             type="text" 
             placeholder="Search lists..." 
-            className="input-field pl-9"
+            className="input-field pl-10 h-11 md:h-10 text-base md:text-sm"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
       </div>
 
-      {/* List Grid / Table */}
-      <div className="flex-1 overflow-auto p-6">
+      {/* List Content */}
+      <div className="flex-1 overflow-auto p-4 md:p-6">
         {loading ? (
-          <div className="flex items-center justify-center h-full text-text-secondary">Loading lists...</div>
+          <div className="flex flex-col items-center justify-center h-full text-text-secondary gap-4">
+            <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            <span className="text-sm">Loading lists...</span>
+          </div>
         ) : filteredLists.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-full text-text-secondary space-y-4">
-            <p>No lists found. Upload a CSV to get started.</p>
-            <button className="btn btn-primary text-xs h-8" onClick={() => fileInputRef.current?.click()}>
-              <Upload className="w-3.5 h-3.5 mr-2" /> Upload CSV
+          <div className="flex flex-col items-center justify-center h-full text-text-secondary gap-4 px-8 text-center scale-in">
+            <div className="w-16 h-16 rounded-2xl bg-elevated flex items-center justify-center mb-2">
+              <Users className="w-8 h-8 text-text-tertiary" />
+            </div>
+            <p className="text-base font-medium text-text-primary">No lists yet</p>
+            <p className="text-sm text-text-secondary">Upload a CSV to create your first list</p>
+            <button 
+              className="btn btn-primary mt-2"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="w-4 h-4 mr-2" /> Upload CSV
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 stagger-children">
             {filteredLists.map((list) => (
-              <Link to={`/lists/${list.id}`} key={list.id} className="block group relative bg-surface border border-border rounded-lg p-5 hover:border-primary/50 transition-colors cursor-pointer">
-                
+              <Link 
+                to={`/lists/${list.id}`} 
+                key={list.id} 
+                className="block group relative card-animated"
+              >
+                {/* Card Header */}
                 <div className="flex justify-between items-start mb-4">
-                  <h3 className="font-medium text-text-primary tracking-tight truncate pr-4">{list.name}</h3>
-                  <div className="relative">
+                  <div className="flex-1 min-w-0 pr-4">
+                    <h3 className="font-semibold text-text-primary tracking-tight truncate text-base group-hover:text-primary transition-colors duration-200">
+                      {list.name}
+                    </h3>
+                  </div>
+                  <div className="relative flex-shrink-0">
                     <button 
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
                         setActiveDropdown(activeDropdown === list.id ? null : list.id);
                       }} 
-                      className={`text-text-tertiary hover:text-text-primary transition-opacity ${activeDropdown === list.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                      className={`p-2 -m-2 rounded-xl text-text-tertiary hover:text-text-primary 
+                               hover:bg-elevated transition-all duration-200 active:scale-95
+                               ${activeDropdown === list.id ? 'bg-elevated text-text-primary' : ''}`}
                     >
                       <MoreVertical className="w-4 h-4" />
                     </button>
+                    
+                    {/* Dropdown Menu */}
                     {activeDropdown === list.id && (
-                      <div className="absolute right-0 top-6 bg-surface border border-border shadow-lg rounded py-1 z-20 w-32">
+                      <div className="absolute right-0 top-8 bg-surface border border-border shadow-xl 
+                                    rounded-xl py-1 z-20 w-36 spring-in overflow-hidden">
                         <button 
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
                             handleDeleteList(list.id, list.name);
                           }}
-                          className="w-full text-left px-4 py-2 text-sm text-status-bounced hover:bg-status-bounced/10 transition-colors"
+                          className="w-full text-left px-4 py-3 text-sm text-status-bounced 
+                                   hover:bg-status-bounced/10 transition-colors active:bg-status-bounced/20"
                         >
                           Delete List
                         </button>
@@ -231,30 +255,41 @@ export function ListsPage() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
+                {/* Stats */}
+                <div className="space-y-2.5">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-text-secondary">Contacts</span>
-                    <span className="font-mono">{list.rows}</span>
+                    <span className="font-mono font-medium text-text-primary">{list.rows}</span>
                   </div>
                   
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-text-secondary">Pending</span>
-                    <span className="font-mono text-status-pending">{list.pending}</span>
+                    <span className="font-mono font-medium text-status-pending">{list.pending}</span>
+                  </div>
+                  
+                  {/* Progress bar */}
+                  <div className="h-1.5 bg-elevated rounded-full overflow-hidden mt-3">
+                    <div 
+                      className="h-full bg-primary rounded-full transition-all duration-500 ease-out"
+                      style={{ width: `${list.rows > 0 ? ((list.rows - list.pending) / list.rows) * 100 : 0}%` }}
+                    />
                   </div>
                 </div>
 
-                <div className="mt-6 flex items-center justify-between">
-                  <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-medium ${
-                    list.status === 'Active' ? 'bg-primary-ghost text-primary-text' :
-                    list.status === 'Completed' ? 'bg-border text-text-secondary' :
-                    'bg-border text-text-tertiary'
+                {/* Footer */}
+                <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between">
+                  <span className={`text-[10px] uppercase tracking-wider px-2.5 py-1 rounded-full font-semibold ${
+                    list.status === 'Active' ? 'bg-primary/10 text-primary' :
+                    list.status === 'Completed' ? 'bg-elevated text-text-secondary' :
+                    'bg-elevated text-text-tertiary'
                   }`}>
                     {list.status}
                   </span>
                   
-                  <span className="text-xs text-text-tertiary font-mono">
-                    {list.lastSent !== 'Never' ? `Sent ${list.lastSent}` : 'Never Sent'}
-                  </span>
+                  <div className="flex items-center gap-1 text-text-tertiary group-hover:text-primary transition-colors duration-200">
+                    <span className="text-xs font-medium">View</span>
+                    <ChevronRight className="w-4 h-4 group-hover:translate-x-0.5 transition-transform duration-200" />
+                  </div>
                 </div>
               </Link>
             ))}
@@ -262,66 +297,96 @@ export function ListsPage() {
         )}
       </div>
 
-      {/* Mapping Modal */}
+      {/* Mobile FAB */}
+      <button 
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading}
+        className="fab md:hidden pulse-glow"
+        aria-label="Upload CSV"
+      >
+        <Plus className="w-6 h-6" />
+      </button>
+
+      {/* Mapping Modal - Mobile Optimized */}
       {isMappingModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="bg-surface border border-border rounded-lg shadow-xl w-full max-w-2xl p-6">
-            <div className="flex items-center justify-between mb-6">
+        <div className="fixed inset-0 z-50 flex items-end md:items-center justify-center">
+          <div 
+            className="absolute inset-0 bg-black/80 backdrop-blur-sm fade-in"
+            onClick={() => setIsMappingModalOpen(false)}
+          />
+          <div className="relative bg-surface border-t md:border border-border rounded-t-3xl md:rounded-2xl 
+                        shadow-xl w-full md:max-w-2xl max-h-[90vh] overflow-hidden slide-up safe-area-bottom">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 md:p-6 border-b border-border sticky top-0 bg-surface z-10">
               <div>
-                <h2 className="text-lg font-medium text-text-primary">Map CSV Columns</h2>
-                <p className="text-sm text-text-secondary mt-1">Match your CSV headers to ZangSends fields.</p>
+                <h2 className="text-lg font-semibold text-text-primary">Map CSV Columns</h2>
+                <p className="text-sm text-text-secondary mt-0.5">Match your CSV headers to fields</p>
               </div>
-              <button onClick={() => setIsMappingModalOpen(false)} className="text-text-tertiary hover:text-text-primary">
+              <button 
+                onClick={() => setIsMappingModalOpen(false)} 
+                className="p-2 -m-2 text-text-tertiary hover:text-text-primary rounded-xl 
+                         hover:bg-elevated transition-all active:scale-95"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
             
-            <div className="bg-elevated border border-border rounded-lg overflow-hidden">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-surface border-b border-border text-text-secondary">
-                  <tr>
-                    <th className="px-4 py-3 font-medium w-1/3">ZangSends Field</th>
-                    <th className="px-4 py-3 font-medium">CSV Column Header</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {[
-                    { key: 'first_name', label: 'First Name', required: false },
-                    { key: 'last_name', label: 'Last Name', required: false },
-                    { key: 'company_name', label: 'Company', required: false },
-                    { key: 'title', label: 'Job Title', required: false },
-                    { key: 'email', label: 'Email Address', required: true },
-                    { key: 'linkedin_url', label: 'LinkedIn URL', required: true }
-                  ].map(field => (
-                    <tr key={field.key} className="hover:bg-surface transition-colors">
-                      <td className="px-4 py-3 font-medium text-text-primary flex items-center">
-                        {field.label}
-                        {field.required && <span className="ml-1 text-[10px] text-text-tertiary font-normal">(Req*)</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <select 
-                          className="w-full bg-background border border-border text-text-primary rounded px-3 py-1.5 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                          value={mapping[field.key as keyof typeof mapping]}
-                          onChange={(e) => setMapping({...mapping, [field.key]: e.target.value})}
-                        >
-                          <option value="">-- Ignore this field --</option>
-                          {csvHeaders.map(header => (
-                            <option key={header} value={header}>{header}</option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {/* Modal Content */}
+            <div className="overflow-y-auto max-h-[60vh] p-4 md:p-6">
+              <div className="space-y-3">
+                {[
+                  { key: 'first_name', label: 'First Name', required: false },
+                  { key: 'last_name', label: 'Last Name', required: false },
+                  { key: 'company_name', label: 'Company', required: false },
+                  { key: 'title', label: 'Job Title', required: false },
+                  { key: 'email', label: 'Email Address', required: true },
+                  { key: 'linkedin_url', label: 'LinkedIn URL', required: true }
+                ].map(field => (
+                  <div key={field.key} className="bg-elevated rounded-xl p-4">
+                    <label className="text-sm font-medium text-text-primary flex items-center mb-2">
+                      {field.label}
+                      {field.required && (
+                        <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
+                          Required
+                        </span>
+                      )}
+                    </label>
+                    <select 
+                      className="w-full bg-surface border border-border text-text-primary rounded-xl 
+                               px-4 py-3 text-base focus:border-primary focus:ring-2 focus:ring-primary/20 
+                               outline-none transition-all"
+                      value={mapping[field.key as keyof typeof mapping]}
+                      onChange={(e) => setMapping({...mapping, [field.key]: e.target.value})}
+                    >
+                      <option value="">-- Ignore this field --</option>
+                      {csvHeaders.map(header => (
+                        <option key={header} value={header}>{header}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+
+              <p className="text-xs text-text-tertiary mt-4 px-1">
+                LinkedIn URLs are used to automatically find emails via our Apify integration.
+              </p>
             </div>
 
-            <p className="text-xs text-text-tertiary mt-4">* Note: We use LinkedIn URLs to automatically find emails via our Apify Waterfall.</p>
-
-            <div className="mt-6 flex justify-end gap-3">
-              <button onClick={() => setIsMappingModalOpen(false)} className="btn border border-border text-text-secondary hover:text-text-primary px-4">Cancel</button>
-              <button onClick={handleConfirmMapping} className="btn btn-primary px-6 flex items-center">
-                Import {rawCsvData.length} Contacts <ChevronRight className="w-4 h-4 ml-1" />
+            {/* Modal Footer */}
+            <div className="p-4 md:p-6 border-t border-border bg-surface sticky bottom-0 flex flex-col md:flex-row gap-3 md:justify-end">
+              <button 
+                onClick={() => setIsMappingModalOpen(false)} 
+                className="btn border border-border text-text-secondary hover:text-text-primary 
+                         order-2 md:order-1"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleConfirmMapping} 
+                className="btn btn-primary order-1 md:order-2"
+              >
+                Import {rawCsvData.length} Contacts
+                <ChevronRight className="w-4 h-4 ml-1" />
               </button>
             </div>
           </div>

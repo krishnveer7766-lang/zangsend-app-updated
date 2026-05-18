@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Clock, FileText, UserPlus, CheckCircle2, AlertCircle, Filter } from 'lucide-react';
+import { Clock, FileText, UserPlus, CheckCircle2, AlertCircle, Filter, RefreshCw, History } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 export function HistoryPage() {
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activities, setActivities] = useState<any[]>([]);
   const [filter, setFilter] = useState('all');
 
@@ -11,10 +12,14 @@ export function HistoryPage() {
     fetchActivityLog();
   }, []);
 
-  const fetchActivityLog = async () => {
-    setLoading(true);
+  const fetchActivityLog = async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+    
     try {
-      // We derive activity from contacts state changes
       const { data, error } = await supabase
         .from('contacts')
         .select(`
@@ -26,7 +31,6 @@ export function HistoryPage() {
 
       if (error) throw error;
 
-      // Transform contacts into activity events
       const events: any[] = [];
       data?.forEach(contact => {
         const firstName = contact?.data?.first_name || '';
@@ -34,7 +38,6 @@ export function HistoryPage() {
         const fallbackEmail = contact?.data?.email || contact?.email || 'Unknown contact';
         const name = `${firstName} ${lastName}`.trim() || fallbackEmail;
         
-        // Event: Contact Created
         events.push({
           id: `${contact.id}-created`,
           type: 'added',
@@ -50,7 +53,6 @@ export function HistoryPage() {
         const templateName = Array.isArray(templates) ? templates[0]?.name : templates?.name;
         const activity = contact.data?.activity || {};
 
-        // Event: Scheduled
         if (contact.scheduled_send_at || activity.scheduled_at) {
           events.push({
             id: `${contact.id}-scheduled`,
@@ -64,7 +66,6 @@ export function HistoryPage() {
           });
         }
 
-        // Event: Draft
         if (contact.status === 'draft' || activity.drafted_at) {
           events.push({
             id: `${contact.id}-draft`,
@@ -78,7 +79,6 @@ export function HistoryPage() {
           });
         }
 
-        // Event: Processing
         if (contact.status === 'processing' || activity.processing_at) {
           events.push({
             id: `${contact.id}-processing`,
@@ -92,7 +92,6 @@ export function HistoryPage() {
           });
         }
 
-        // Event: Sent
         if (contact.sent_at || activity.sent_at) {
           events.push({
             id: `${contact.id}-sent`,
@@ -106,7 +105,6 @@ export function HistoryPage() {
           });
         }
 
-        // Event: Bounced
         if (contact.status === 'bounced' || activity.failed_at) {
           events.push({
             id: `${contact.id}-failed`,
@@ -115,13 +113,12 @@ export function HistoryPage() {
             description: `Could not send email to ${name}. Please check SMTP settings.`,
             timestamp: activity.failed_at || contact.sent_at || contact.created_at,
             icon: AlertCircle,
-            color: 'text-status-failed',
-            bg: 'bg-status-failed/10'
+            color: 'text-status-bounced',
+            bg: 'bg-status-bounced/10'
           });
         }
       });
 
-      // Sort by timestamp latest first
       events.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       setActivities(events);
 
@@ -129,6 +126,7 @@ export function HistoryPage() {
       console.error('Error fetching activity log:', err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -137,70 +135,103 @@ export function HistoryPage() {
     : activities.filter(a => a.type === filter);
 
   return (
-    <div className="h-full flex flex-col bg-background">
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-border bg-surface">
-        <div>
-          <h1 className="text-xl font-display font-medium tracking-tight">Activity History</h1>
-          <p className="text-xs text-text-secondary mt-1">Timeline of all actions performed in ZangSends.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Filter className="w-3.5 h-3.5 text-text-tertiary mr-1" />
-          <select 
-            value={filter}
-            onChange={e => setFilter(e.target.value)}
-            className="bg-elevated border border-border text-xs rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary"
-          >
-            <option value="all">All Activities</option>
-            <option value="sent">Sent</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="draft">Drafts</option>
-            <option value="processing">Processing</option>
-            <option value="failed">Failed</option>
-            <option value="added">New Leads</option>
-          </select>
-          <button onClick={fetchActivityLog} className="btn border border-border text-xs px-4 h-9 ml-2">
-            Refresh
-          </button>
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="flex-shrink-0 px-4 md:px-6 py-4 border-b border-border">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="slide-up">
+            <h1 className="text-xl md:text-2xl font-display font-semibold tracking-tight">History</h1>
+            <p className="text-xs md:text-sm text-text-secondary mt-1">Activity timeline</p>
+          </div>
+          <div className="flex items-center gap-2 slide-up" style={{ animationDelay: '50ms' }}>
+            <div className="flex items-center gap-2 flex-1 md:flex-none">
+              <Filter className="w-4 h-4 text-text-tertiary" />
+              <select 
+                value={filter}
+                onChange={e => setFilter(e.target.value)}
+                className="bg-surface border border-border rounded-xl px-3 py-2.5 text-sm 
+                         focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary
+                         flex-1 md:flex-none md:min-w-[140px]"
+              >
+                <option value="all">All Activities</option>
+                <option value="sent">Sent</option>
+                <option value="scheduled">Scheduled</option>
+                <option value="draft">Drafts</option>
+                <option value="processing">Processing</option>
+                <option value="failed">Failed</option>
+                <option value="added">New Leads</option>
+              </select>
+            </div>
+            <button 
+              onClick={() => fetchActivityLog(true)} 
+              disabled={refreshing}
+              className="btn border border-border h-10 px-3"
+            >
+              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            </button>
+          </div>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-8 max-w-4xl mx-auto w-full">
-        {loading ? (
-          <div className="text-center py-20 text-text-tertiary">Loading activity history...</div>
-        ) : filteredActivities.length === 0 ? (
-          <div className="text-center py-20 text-text-tertiary">No actions logged yet.</div>
-        ) : (
-          <div className="relative">
-            {/* Timeline Line */}
-            <div className="absolute left-[17px] top-4 bottom-4 w-px bg-border-soft" />
-
-            <div className="space-y-8">
-              {filteredActivities.map((activity) => (
-                <div key={activity.id} className="relative pl-12 group">
-                  {/* Timeline Dot */}
-                  <div className={`absolute left-0 top-0 w-9 h-9 rounded-full ${activity.bg} flex items-center justify-center border border-border group-hover:border-primary/30 transition-colors z-10 shadow-sm`}>
-                    <activity.icon className={`w-4 h-4 ${activity.color}`} />
-                  </div>
-
-                  <div className="flex flex-col">
-                    <div className="flex items-center gap-3">
-                      <h3 className="text-sm font-semibold text-text-primary">{activity.title}</h3>
-                      <span className="text-[10px] text-text-tertiary font-mono uppercase tracking-widest bg-elevated px-2 py-0.5 rounded">
-                        {new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                      <span className="text-[10px] text-text-tertiary">
-                        {new Date(activity.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
-                      </span>
-                    </div>
-                    <p className="text-sm text-text-secondary mt-1 leading-relaxed">
-                      {activity.description}
-                    </p>
-                  </div>
-                </div>
-              ))}
+      {/* Timeline Content */}
+      <div className="flex-1 overflow-auto p-4 md:p-8">
+        <div className="max-w-3xl mx-auto">
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-20 text-text-secondary gap-4">
+              <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+              <span className="text-sm">Loading activity history...</span>
             </div>
-          </div>
-        )}
+          ) : filteredActivities.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-center scale-in">
+              <div className="w-16 h-16 rounded-2xl bg-elevated flex items-center justify-center mb-4">
+                <History className="w-8 h-8 text-text-tertiary" />
+              </div>
+              <p className="text-base font-medium text-text-primary mb-1">No activity yet</p>
+              <p className="text-sm text-text-secondary">Actions will appear here as you use ZangSends</p>
+            </div>
+          ) : (
+            <div className="relative stagger-children">
+              {/* Timeline Line */}
+              <div className="absolute left-5 md:left-[18px] top-6 bottom-6 w-px bg-border" />
+
+              <div className="space-y-4 md:space-y-6">
+                {filteredActivities.map((activity, index) => (
+                  <div 
+                    key={activity.id} 
+                    className="relative pl-14 md:pl-14 group"
+                    style={{ animationDelay: `${Math.min(index * 30, 300)}ms` }}
+                  >
+                    {/* Timeline Dot */}
+                    <div className={`absolute left-0 top-0 w-10 h-10 md:w-9 md:h-9 rounded-xl ${activity.bg} 
+                                  flex items-center justify-center border border-border 
+                                  group-hover:border-primary/30 transition-all duration-200 z-10 shadow-sm
+                                  group-hover:scale-105`}>
+                      <activity.icon className={`w-4 h-4 ${activity.color}`} />
+                    </div>
+
+                    {/* Card Content */}
+                    <div className="card-animated p-4">
+                      <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-3 mb-2">
+                        <h3 className="text-sm font-semibold text-text-primary">{activity.title}</h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-text-tertiary font-mono uppercase tracking-wider bg-elevated px-2 py-0.5 rounded-md">
+                            {new Date(activity.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <span className="text-[10px] text-text-tertiary">
+                            {new Date(activity.timestamp).toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-sm text-text-secondary leading-relaxed">
+                        {activity.description}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

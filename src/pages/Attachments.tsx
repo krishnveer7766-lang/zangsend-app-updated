@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Paperclip, Upload, Trash2, Download, File, Loader2 } from 'lucide-react';
+import { Paperclip, Upload, Trash2, Download, File, Loader2, Plus } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 type Attachment = {
@@ -50,14 +50,12 @@ export function AttachmentsPage() {
       const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
       const filePath = `${user.id}/${fileName}`;
 
-      // Upload to storage
       const { error: uploadError } = await supabase.storage
         .from('attachments')
         .upload(filePath, file);
 
       if (uploadError) throw uploadError;
 
-      // Create database record
       const { error: dbError } = await supabase
         .from('attachments')
         .insert({
@@ -80,17 +78,15 @@ export function AttachmentsPage() {
   };
 
   const handleDelete = async (id: string, storagePath: string) => {
-    if (!window.confirm('Delete this attachment? Templates using it will lose access.')) return;
+    if (!window.confirm('Delete this attachment?')) return;
     
     try {
-      // Delete from storage
       const { error: storageError } = await supabase.storage
         .from('attachments')
         .remove([storagePath]);
         
       if (storageError) console.error('Storage deletion failed:', storageError);
 
-      // Delete from DB
       const { error: dbError } = await supabase
         .from('attachments')
         .delete()
@@ -136,13 +132,15 @@ export function AttachmentsPage() {
   }
 
   return (
-    <div className="h-full flex flex-col relative p-8 max-w-5xl mx-auto w-full">
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <h1 className="text-2xl font-display font-medium tracking-tight mb-1">Attachments</h1>
-          <p className="text-text-secondary text-sm">Upload CVs, PDFs, and files to attach to your templates.</p>
-        </div>
-        <div>
+    <div className="h-full flex flex-col">
+      {/* Header */}
+      <div className="flex-shrink-0 px-4 md:px-6 py-4 border-b border-border">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="slide-up">
+            <h1 className="text-xl md:text-2xl font-display font-semibold tracking-tight">Attachments</h1>
+            <p className="text-xs md:text-sm text-text-secondary mt-1">Files to attach to your templates</p>
+          </div>
+          
           <input
             type="file"
             ref={fileInputRef}
@@ -153,7 +151,7 @@ export function AttachmentsPage() {
           <button 
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="btn btn-primary"
+            className="btn btn-primary hidden md:flex slide-up"
           >
             {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
             {uploading ? 'Uploading...' : 'Upload File'}
@@ -161,83 +159,132 @@ export function AttachmentsPage() {
         </div>
       </div>
 
-      <div className="bg-surface border border-border rounded-lg shadow-sm overflow-hidden flex-1">
-        <table className="w-full text-left">
-          <thead className="bg-elevated border-b border-border">
-            <tr className="text-xs font-medium text-text-secondary uppercase tracking-wider">
-              <th className="px-6 py-4 w-[60%]">File Details</th>
-              <th className="px-6 py-4 w-[20%]">Size</th>
-              <th className="px-6 py-4 w-[20%]">Uploaded</th>
-              <th className="px-6 py-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border">
-            {loading ? (
-              <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-text-secondary">
-                  <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-primary" />
-                  Loading attachments...
-                </td>
-              </tr>
-            ) : attachments.length === 0 ? (
-              <tr>
-                <td colSpan={4} className="px-6 py-12 text-center">
-                  <div className="w-12 h-12 rounded-full bg-elevated border border-border flex items-center justify-center mx-auto mb-3">
-                    <Paperclip className="w-5 h-5 text-text-tertiary" />
-                  </div>
-                  <h3 className="text-sm font-medium text-text-primary mb-1">No attachments found</h3>
-                  <p className="text-xs text-text-secondary mb-4">Upload a file to get started.</p>
-                  <button 
-                    onClick={() => fileInputRef.current?.click()}
-                    className="text-primary text-sm hover:underline"
-                  >
-                    Upload your first file
-                  </button>
-                </td>
-              </tr>
-            ) : (
-              attachments.map(att => (
-                <tr key={att.id} className="hover:bg-elevated/30 transition-colors group">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded bg-primary-ghost/30 text-primary flex items-center justify-center flex-shrink-0">
-                        <File className="w-4 h-4" />
-                      </div>
-                      <span className="text-sm font-medium text-text-primary truncate" title={att.filename}>
+      {/* Content */}
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 text-text-secondary gap-4">
+            <div className="w-12 h-12 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            <span className="text-sm">Loading attachments...</span>
+          </div>
+        ) : attachments.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center px-4 scale-in">
+            <div className="w-16 h-16 rounded-2xl bg-elevated flex items-center justify-center mb-4">
+              <Paperclip className="w-8 h-8 text-text-tertiary" />
+            </div>
+            <p className="text-base font-medium text-text-primary mb-1">No attachments yet</p>
+            <p className="text-sm text-text-secondary mb-4">Upload CVs, PDFs, and files for your templates</p>
+            <button 
+              onClick={() => fileInputRef.current?.click()}
+              className="btn btn-primary"
+            >
+              <Upload className="w-4 h-4 mr-2" /> Upload File
+            </button>
+          </div>
+        ) : (
+          <>
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-3 stagger-children">
+              {attachments.map(att => (
+                <div key={att.id} className="card-animated p-4">
+                  <div className="flex items-start gap-3">
+                    <div className="w-12 h-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                      <File className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-text-primary truncate" title={att.filename}>
                         {att.filename}
-                      </span>
+                      </p>
+                      <div className="flex items-center gap-3 text-xs text-text-secondary mt-1">
+                        <span>{formatBytes(att.size_bytes)}</span>
+                        <span>{new Date(att.created_at).toLocaleDateString()}</span>
+                      </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-text-secondary">
-                    {formatBytes(att.size_bytes)}
-                  </td>
-                  <td className="px-6 py-4 text-sm text-text-secondary">
-                    {new Date(att.created_at).toLocaleDateString()}
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button 
-                        onClick={() => handleDownload(att.storage_path, att.filename)}
-                        className="p-1.5 text-text-tertiary hover:text-primary transition-colors rounded hover:bg-primary-ghost/20"
-                        title="Download"
-                      >
-                        <Download className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleDelete(att.id, att.storage_path)}
-                        className="p-1.5 text-text-tertiary hover:text-status-bounced transition-colors rounded hover:bg-status-bounced/10"
-                        title="Delete"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+                  </div>
+                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border">
+                    <button 
+                      onClick={() => handleDownload(att.storage_path, att.filename)}
+                      className="btn border border-border h-9 text-xs flex-1"
+                    >
+                      <Download className="w-4 h-4 mr-1" />
+                      Download
+                    </button>
+                    <button 
+                      onClick={() => handleDelete(att.id, att.storage_path)}
+                      className="btn border border-border h-9 text-xs text-status-bounced hover:bg-status-bounced/10 hover:border-status-bounced/30"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden md:block card-animated p-0 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-elevated/30 border-b border-border">
+                  <tr className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">
+                    <th className="px-5 py-4 w-[50%]">File</th>
+                    <th className="px-5 py-4 w-[20%]">Size</th>
+                    <th className="px-5 py-4 w-[20%]">Uploaded</th>
+                    <th className="px-5 py-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {attachments.map(att => (
+                    <tr key={att.id} className="hover:bg-elevated/20 transition-colors group">
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center flex-shrink-0">
+                            <File className="w-5 h-5" />
+                          </div>
+                          <span className="text-sm font-medium text-text-primary truncate max-w-[300px]" title={att.filename}>
+                            {att.filename}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4 text-sm text-text-secondary">
+                        {formatBytes(att.size_bytes)}
+                      </td>
+                      <td className="px-5 py-4 text-sm text-text-secondary">
+                        {new Date(att.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-5 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          <button 
+                            onClick={() => handleDownload(att.storage_path, att.filename)}
+                            className="p-2.5 text-text-tertiary hover:text-primary transition-colors rounded-xl hover:bg-primary/10"
+                            title="Download"
+                          >
+                            <Download className="w-4 h-4" />
+                          </button>
+                          <button 
+                            onClick={() => handleDelete(att.id, att.storage_path)}
+                            className="p-2.5 text-text-tertiary hover:text-status-bounced transition-colors rounded-xl hover:bg-status-bounced/10"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
+
+      {/* Mobile FAB */}
+      <button 
+        onClick={() => fileInputRef.current?.click()}
+        disabled={uploading}
+        className="fab md:hidden pulse-glow"
+        aria-label="Upload File"
+      >
+        {uploading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Plus className="w-6 h-6" />}
+      </button>
     </div>
   );
 }
