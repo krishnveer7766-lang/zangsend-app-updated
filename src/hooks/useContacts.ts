@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase';
 export type Contact = {
   id: string;
   list_id: string;
+  user_id?: string;
   first_name: string | null;
   last_name: string | null;
   company_name: string | null;
@@ -15,11 +16,15 @@ export type Contact = {
   attachment_id: string | null;
   scheduled_send_at: string | null;
   sent_at?: string | null;
+  opened_at?: string | null;
+  clicked_at?: string | null;
   data?: any;
   sender_id: string | null;
+  campaign_id: string | null;
   created_at: string;
   template?: { name: string } | null;
   attachment?: { filename: string, storage_path: string } | null;
+  campaign?: { name: string } | null;
 };
 
 export const PAGE_SIZE = 100;

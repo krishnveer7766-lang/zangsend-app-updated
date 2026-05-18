@@ -27,6 +27,15 @@ export function ListDetailPage() {
   const [sendProgress, setSendProgress] = useState({ current: 0, total: 0 });
   const fileInputRef = useRef<HTMLInputElement>(null);
   
+  // List Name & Campaign States
+  const [listName, setListName] = useState('List');
+  const [isCampaignModalOpen, setIsCampaignModalOpen] = useState(false);
+  const [campaignMode, setCampaignMode] = useState<'create' | 'existing'>('create');
+  const [newCampaignName, setNewCampaignName] = useState('');
+  const [selectedCampaignIdForRun, setSelectedCampaignIdForRun] = useState('');
+  const [existingCampaigns, setExistingCampaigns] = useState<any[]>([]);
+  const [pendingAction, setPendingAction] = useState<'send' | 'draft' | 'schedule' | null>(null);
+
   // Mass Edit State
   const [isMassEditModalOpen, setIsMassEditModalOpen] = useState(false);
   const [massEditTemplateId, setMassEditTemplateId] = useState('');
@@ -42,6 +51,31 @@ export function ListDetailPage() {
   });
   
   useEffect(() => {
+    if (id) {
+      supabase.from('lists').select('name').eq('id', id).single().then(({ data }) => {
+        if (data) setListName(data.name);
+      });
+      
+      const fetchCampaigns = async () => {
+        try {
+          const { data } = await supabase
+            .from('campaigns')
+            .select('*')
+            .eq('list_id', id)
+            .order('sent_at', { ascending: false });
+          if (data) {
+            setExistingCampaigns(data);
+            if (data.length > 0) {
+              setSelectedCampaignIdForRun(data[0].id);
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching campaigns:', err);
+        }
+      };
+      fetchCampaigns();
+    }
+
     supabase.from('attachments').select('id, filename, storage_path').then(({ data }) => {
       if (data) setAttachments(data);
     });
@@ -58,7 +92,7 @@ export function ListDetailPage() {
       }
     };
     fetchSenders();
-  }, []);
+  }, [id]);
 
   const handleMassEdit = async () => {
     const updates: any = {};
@@ -291,15 +325,16 @@ export function ListDetailPage() {
     setSelectedRows([]);
   };
 
-  const handleSendCampaign = async () => {
+  const triggerCampaignSetup = (type: 'send' | 'draft' | 'schedule') => {
     if (selectedRows.length === 0) return;
-    if (!selectedSenderId) {
+    if (type === 'send' && !selectedSenderId) {
       alert('Please connect a Gmail account in Settings first.');
       return;
     }
-
-    const sender = senders.find(s => s.id === selectedSenderId);
-    if (!sender) return;
+    if (type !== 'send' && senders.length === 0) {
+      alert('Please connect at least one Gmail account in Settings first.');
+      return;
+    }
 
     const selectedContacts = contacts.filter(c => selectedRows.includes(c.id));
     const withEmail = selectedContacts.filter(c => c.email);
@@ -309,13 +344,89 @@ export function ListDetailPage() {
       return;
     }
 
+    const missingEmailsCount = selectedContacts.length - withEmail.length;
+    if (missingEmailsCount > 0) {
+      const proceed = window.confirm(
+        `⚠️ Warning: ${missingEmailsCount} out of the ${selectedContacts.length} selected contacts do not have email addresses. They will be skipped and remain in "pending" status.\n\nDo you want to proceed with scheduling the remaining ${withEmail.length} contacts?`
+      );
+      if (!proceed) return;
+    }
+
     const missingTemplates = withEmail.filter(c => !c.template_id);
     if (missingTemplates.length > 0) {
       alert(`Please assign a template to all selected contacts. ${missingTemplates.length} contacts are missing a template.`);
       return;
     }
 
-    if (!confirm(`Send campaign to ${withEmail.length} contacts using ${sender.email}?`)) return;
+    setPendingAction(type);
+    const dateStr = new Date().toLocaleDateString();
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    setNewCampaignName(`Campaign - ${listName} - ${dateStr} ${timeStr}`);
+    setIsCampaignModalOpen(true);
+  };
+
+  const handleCampaignConfirm = async () => {
+    setIsCampaignModalOpen(false);
+    let campaignId = selectedCampaignIdForRun;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+
+      if (campaignMode === 'create') {
+        if (!newCampaignName.trim()) {
+          alert('Please enter a campaign name');
+          return;
+        }
+
+        const selectedContacts = contacts.filter(c => selectedRows.includes(c.id));
+        const firstTemplateId = selectedContacts.find(c => c.template_id)?.template_id || null;
+        const sender = senders.find(s => s.id === selectedSenderId) || senders[0];
+
+        const { data: newCam, error: camErr } = await supabase
+          .from('campaigns')
+          .insert({
+            user_id: user.id,
+            list_id: id,
+            name: newCampaignName.trim(),
+            template_id: firstTemplateId,
+            sent_by_email: sender?.email || null,
+            sent_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (camErr) throw camErr;
+        if (newCam) {
+          campaignId = newCam.id;
+          setExistingCampaigns(prev => [newCam, ...prev]);
+        }
+      }
+
+      if (!campaignId) {
+        alert('Campaign ID not selected/created.');
+        return;
+      }
+
+      if (pendingAction === 'send') {
+        await executeSendCampaign(campaignId);
+      } else if (pendingAction === 'draft') {
+        await executeScheduleCampaign('draft', campaignId);
+      } else if (pendingAction === 'schedule') {
+        await executeScheduleCampaign('scheduled', campaignId);
+      }
+    } catch (err: any) {
+      console.error('Error starting campaign:', err);
+      alert('Failed to configure campaign: ' + err.message);
+    }
+  };
+
+  const executeSendCampaign = async (campaignId: string) => {
+    const sender = senders.find(s => s.id === selectedSenderId);
+    if (!sender) return;
+
+    const selectedContacts = contacts.filter(c => selectedRows.includes(c.id));
+    const withEmail = selectedContacts.filter(c => c.email);
 
     setIsSending(true);
     setSchedulingType('send');
@@ -386,9 +497,18 @@ export function ListDetailPage() {
         if (sendData.success) {
           await supabase.from('contacts').update({ 
             status: 'sent', 
-            sent_at: new Date().toISOString() 
+            sent_at: new Date().toISOString(),
+            campaign_id: campaignId,
+            opened_at: null,
+            clicked_at: null
           }).eq('id', contact.id);
-          updateContactLocally(contact.id, { status: 'sent', sent_at: new Date().toISOString() });
+          updateContactLocally(contact.id, { 
+            status: 'sent', 
+            sent_at: new Date().toISOString(),
+            campaign_id: campaignId,
+            opened_at: null,
+            clicked_at: null
+          });
         } else {
           console.error('Failed to send email:', sendData.error);
           alert(`Failed to send to ${contact.email}: ${sendData.error}`);
@@ -405,70 +525,116 @@ export function ListDetailPage() {
     alert(`Campaign complete! Sent ${withEmail.length} emails.`);
   };
 
-  const handleSchedule = async (type: 'draft' | 'scheduled') => {
-    if (selectedRows.length === 0) return;
-    if (senders.length === 0) {
-      alert('Please connect at least one Gmail account in Settings first.');
-      return;
-    }
-
+  const executeScheduleCampaign = async (type: 'draft' | 'scheduled', campaignId: string) => {
     const selectedContacts = contacts.filter(c => selectedRows.includes(c.id));
     const withEmail = selectedContacts.filter(c => c.email);
 
-    if (withEmail.length === 0) {
-      alert('None of the selected contacts have email addresses.');
-      return;
+    // Fetch existing scheduled and sent emails for today and future from Supabase to enforce 45 limit
+    const senderIds = senders.map(s => s.id);
+    const existingScheduledCounts: Record<string, Record<string, number>> = {};
+
+    const getLocalDateString = (date: Date): string => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    try {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const startOfTodayIso = startOfToday.toISOString();
+
+      const { data: existingEmails, error: existingError } = await supabase
+        .from('contacts')
+        .select('sender_id, scheduled_send_at, status, sent_at')
+        .in('sender_id', senderIds)
+        .in('status', ['scheduled', 'sent', 'processing'])
+        .or(`scheduled_send_at.gte.${startOfTodayIso},sent_at.gte.${startOfTodayIso}`);
+
+      if (existingError) {
+        console.error('Error fetching existing scheduled emails:', existingError);
+      } else if (existingEmails) {
+        existingEmails.forEach(email => {
+          const sId = email.sender_id;
+          if (!sId) return;
+
+          const dateVal = email.status === 'sent' ? email.sent_at : email.scheduled_send_at;
+          if (!dateVal) return;
+
+          const dateStr = getLocalDateString(new Date(dateVal));
+          if (!existingScheduledCounts[sId]) {
+            existingScheduledCounts[sId] = {};
+          }
+          existingScheduledCounts[sId][dateStr] = (existingScheduledCounts[sId][dateStr] || 0) + 1;
+        });
+      }
+    } catch (e) {
+      console.error('Failed to parse/fetch existing scheduled emails:', e);
     }
 
-    const missingTemplates = withEmail.filter(c => !c.template_id);
-    if (missingTemplates.length > 0) {
-      alert(`Please assign a template to all selected contacts. ${missingTemplates.length} contacts are missing a template.`);
-      return;
-    }
-
-    // Distribute emails
-    const schedules = distributeEmails(withEmail, senders, workingHours, 45);
+    // Distribute emails passing existingScheduledCounts
+    const schedules = distributeEmails(withEmail, senders, workingHours, 45, existingScheduledCounts);
     
     setIsSending(true);
     setSchedulingType(type === 'draft' ? 'draft' : 'schedule');
     setSendProgress({ current: 0, total: schedules.length });
 
     try {
-      // Process database updates in chunks of 15 in parallel to prevent network connection exhaustion
-      const DB_CHUNK_SIZE = 15;
-      for (let i = 0; i < schedules.length; i += DB_CHUNK_SIZE) {
-        const chunk = schedules.slice(i, i + DB_CHUNK_SIZE);
-        await Promise.all(chunk.map(async s => {
-          const contact = withEmail.find(c => c.id === s.contactId);
-          const currentData = (contact as any)?.data || {};
-          const nowIso = new Date().toISOString();
-          const { error } = await supabase.from('contacts').update({
-            status: type === 'draft' ? 'draft' : 'scheduled',
-            scheduled_send_at: type === 'draft' ? null : s.scheduled_send_at,
+      // Prepare bulk upsert payload
+      const upsertPayload = schedules.map(s => {
+        const contact = withEmail.find(c => c.id === s.contactId)!;
+        const currentData = (contact as any)?.data || {};
+        const nowIso = new Date().toISOString();
+        return {
+          id: s.contactId,
+          list_id: contact.list_id,
+          user_id: contact.user_id || '',
+          email: contact.email,
+          template_id: contact.template_id,
+          attachment_id: contact.attachment_id,
+          status: type === 'draft' ? 'draft' : 'scheduled',
+          scheduled_send_at: type === 'draft' ? null : s.scheduled_send_at,
+          sender_id: s.sender_id,
+          campaign_id: campaignId,
+          sent_at: null,
+          opened_at: null,
+          clicked_at: null,
+          data: {
+            ...currentData,
             sender_id: s.sender_id,
-            data: {
-              ...currentData,
-              sender_id: s.sender_id,
-              is_draft: type === 'draft',
-              activity: {
-                ...(currentData.activity || {}),
-                scheduled_at: type === 'scheduled' ? nowIso : (currentData.activity?.scheduled_at || null),
-                drafted_at: type === 'draft' ? nowIso : (currentData.activity?.drafted_at || null)
-              }
+            is_draft: type === 'draft',
+            activity: {
+              ...(currentData.activity || {}),
+              scheduled_at: type === 'scheduled' ? nowIso : (currentData.activity?.scheduled_at || null),
+              drafted_at: type === 'draft' ? nowIso : (currentData.activity?.drafted_at || null),
+              sent_at: null,
+              opened_at: null,
+              clicked_at: null
             }
-          }).eq('id', s.contactId);
-          
-          if (error) {
-            throw new Error(`Failed to update contact ${contact?.email || s.contactId}: ${error.message}`);
           }
-        }));
+        };
+      });
 
-        // For non-draft scheduling, update progress after database chunk completes
-        if (type !== 'draft') {
-          setSendProgress({ current: Math.min(i + DB_CHUNK_SIZE, schedules.length), total: schedules.length });
-        }
+      // Update progress initially
+      if (type !== 'draft') {
+        setSendProgress({ current: 0, total: upsertPayload.length });
       }
 
+      // Perform a single batch upsert for atomicity, speed, and reliability
+      const { error: upsertError } = await supabase
+        .from('contacts')
+        .upsert(upsertPayload);
+
+      if (upsertError) {
+        throw new Error(`Failed to update contacts in database: ${upsertError.message}`);
+      }
+
+      if (type !== 'draft') {
+        setSendProgress({ current: upsertPayload.length, total: upsertPayload.length });
+      }
+
+      // Update local state using the updateContactLocally helper function from useContacts hook
       schedules.forEach(s => {
         const contact = withEmail.find(c => c.id === s.contactId);
         const currentData = (contact as any)?.data || {};
@@ -477,6 +643,10 @@ export function ListDetailPage() {
           status: type === 'draft' ? 'draft' : 'scheduled', 
           scheduled_send_at: type === 'draft' ? null : s.scheduled_send_at,
           sender_id: s.sender_id,
+          campaign_id: campaignId,
+          sent_at: null,
+          opened_at: null,
+          clicked_at: null,
           data: {
             ...currentData,
             sender_id: s.sender_id,
@@ -484,7 +654,10 @@ export function ListDetailPage() {
             activity: {
               ...(currentData.activity || {}),
               scheduled_at: type === 'scheduled' ? nowIso : (currentData.activity?.scheduled_at || null),
-              drafted_at: type === 'draft' ? nowIso : (currentData.activity?.drafted_at || null)
+              drafted_at: type === 'draft' ? nowIso : (currentData.activity?.drafted_at || null),
+              sent_at: null,
+              opened_at: null,
+              clicked_at: null
             }
           } 
         } as any);
@@ -700,7 +873,7 @@ export function ListDetailPage() {
           </Link>
           <div>
             <div className="flex items-center gap-3">
-              <h1 className="text-xl font-display font-medium tracking-tight">List Details</h1>
+              <h1 className="text-xl font-display font-medium tracking-tight">{listName}</h1>
               <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-medium bg-primary-ghost text-primary-text">Active</span>
             </div>
             <p className="text-xs text-text-secondary mt-1">
@@ -789,6 +962,7 @@ export function ListDetailPage() {
               <th className="px-6 py-3 font-medium">Title</th>
               <th className="px-6 py-3 font-medium">LinkedIn URL</th>
               <th className="px-6 py-3 font-medium">Email</th>
+              <th className="px-6 py-3 font-medium">Campaign</th>
               <th className="px-6 py-3 font-medium">Template</th>
               <th className="px-6 py-3 font-medium">Attachment</th>
               <th className="px-6 py-3 font-medium">Sent At</th>
@@ -846,6 +1020,9 @@ export function ListDetailPage() {
                   ) : (
                     <span className="text-text-tertiary">—</span>
                   )}
+                </td>
+                <td className="px-6 py-3 text-text-secondary truncate max-w-[130px]" title={existingCampaigns.find(c => c.id === contact.campaign_id)?.name || contact.data?.campaign_name || ''}>
+                  {existingCampaigns.find(c => c.id === contact.campaign_id)?.name || contact.data?.campaign_name || '—'}
                 </td>
                 <td className="px-6 py-3 text-text-secondary">
                   <select 
@@ -993,7 +1170,7 @@ export function ListDetailPage() {
             </select>
           </div>
           <button 
-            onClick={() => handleSchedule('draft')}
+            onClick={() => triggerCampaignSetup('draft')}
             disabled={isSending}
             className="flex items-center text-sm text-text-secondary hover:text-text-primary transition-colors gap-2 disabled:opacity-50"
           >
@@ -1004,7 +1181,7 @@ export function ListDetailPage() {
             )}
           </button>
           <button 
-            onClick={() => handleSchedule('scheduled')}
+            onClick={() => triggerCampaignSetup('schedule')}
             disabled={isSending}
             className="flex items-center text-sm text-text-secondary hover:text-primary transition-colors gap-2 disabled:opacity-50"
           >
@@ -1022,7 +1199,7 @@ export function ListDetailPage() {
             Mass Edit
           </button>
           <button 
-            onClick={handleSendCampaign} 
+            onClick={() => triggerCampaignSetup('send')} 
             disabled={isSending}
             className="flex items-center text-sm text-text-secondary hover:text-status-sent transition-colors gap-2 disabled:opacity-50"
           >
@@ -1218,6 +1395,98 @@ export function ListDetailPage() {
             <div className="mt-8 flex justify-end gap-3">
               <button onClick={() => setIsMassEditModalOpen(false)} className="btn border border-border text-text-secondary hover:text-text-primary text-sm px-4">Cancel</button>
               <button onClick={handleMassEdit} className="btn btn-primary text-sm px-6">Apply to {selectedRows.length} Contacts</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Campaign Setup Modal */}
+      {isCampaignModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+          <div className="bg-surface border border-border rounded-xl shadow-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-display font-medium text-text-primary">
+                Campaign Setup
+              </h2>
+              <button onClick={() => setIsCampaignModalOpen(false)} className="text-text-tertiary hover:text-text-primary">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            
+            <p className="text-xs text-text-secondary mb-6">
+              Group these {contacts.filter(c => selectedRows.includes(c.id) && c.email).length} contacts into a campaign for clean tracking.
+            </p>
+
+            <div className="space-y-6">
+              {/* Campaign Type Selection */}
+              <div className="flex gap-4">
+                <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                  <input
+                    type="radio"
+                    name="campaignMode"
+                    value="create"
+                    checked={campaignMode === 'create'}
+                    onChange={() => setCampaignMode('create')}
+                    className="accent-primary text-primary focus:ring-primary border-border bg-background"
+                  />
+                  Start New Campaign
+                </label>
+                <label className="flex items-center gap-2 text-xs font-medium cursor-pointer">
+                  <input
+                    type="radio"
+                    name="campaignMode"
+                    value="existing"
+                    checked={campaignMode === 'existing'}
+                    disabled={existingCampaigns.length === 0}
+                    onChange={() => setCampaignMode('existing')}
+                    className="accent-primary text-primary focus:ring-primary border-border bg-background disabled:opacity-50"
+                  />
+                  Add to Existing Campaign
+                </label>
+              </div>
+
+              {campaignMode === 'create' ? (
+                <div>
+                  <label className="label text-xs mb-2 block font-medium">New Campaign Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Campaign Round 1"
+                    className="input-field"
+                    value={newCampaignName}
+                    onChange={e => setNewCampaignName(e.target.value)}
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="label text-xs mb-2 block font-medium">Select Campaign</label>
+                  <select
+                    className="input-field py-2"
+                    value={selectedCampaignIdForRun}
+                    onChange={e => setSelectedCampaignIdForRun(e.target.value)}
+                  >
+                    {existingCampaigns.map(c => (
+                      <option key={c.id} value={c.id}>
+                        {c.name} ({new Date(c.sent_at).toLocaleDateString()})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-8 flex justify-end gap-3">
+              <button
+                onClick={() => setIsCampaignModalOpen(false)}
+                className="btn border border-border text-text-secondary hover:text-text-primary text-xs px-4"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCampaignConfirm}
+                className="btn btn-primary text-xs px-4"
+              >
+                Proceed & Start
+              </button>
             </div>
           </div>
         </div>

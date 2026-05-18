@@ -4,8 +4,9 @@ import { supabase } from '../lib/supabase';
 
 export function StatisticsPage() {
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({ sent: 0, opened: 0, clicked: 0 });
-  const [leads, setLeads] = useState<any[]>([]);
+  const [allContacts, setAllContacts] = useState<any[]>([]);
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+  const [selectedCampaignId, setSelectedCampaignId] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -15,23 +16,39 @@ export function StatisticsPage() {
   const fetchStats = async () => {
     setLoading(true);
     try {
+      // Fetch campaigns
+      const { data: cams } = await supabase
+        .from('campaigns')
+        .select('*')
+        .order('sent_at', { ascending: false });
+      if (cams) {
+        setCampaigns(cams);
+      }
+
+      // Fetch contacts
       const { data: contacts, error } = await supabase
         .from('contacts')
-        .select('id, first_name, last_name, email, company_name, status, opened_at, clicked_at, sent_at, data')
-        .order('opened_at', { ascending: false, nullsFirst: false });
+        .select('*')
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
       if (contacts) {
-        const sentContacts = contacts.filter((c: any) =>
-          c.status === 'sent' || c.sent_at || c.data?.activity?.sent_at
-        );
-        const sent = sentContacts.length;
-        const opened = sentContacts.filter((c: any) => c.opened_at).length;
-        const clicked = sentContacts.filter((c: any) => c.clicked_at).length;
-        
-        setStats({ sent, opened, clicked });
-        setLeads(sentContacts);
+        const mapped = contacts.map((c: any) => {
+          const openedAt = c.opened_at || c.data?.activity?.opened_at || null;
+          const clickedAt = c.clicked_at || c.data?.activity?.clicked_at || null;
+          const sentAt = c.sent_at || c.data?.activity?.sent_at || null;
+          return {
+            ...c,
+            first_name: c.first_name || c.data?.first_name || c.data?.firstName || null,
+            last_name: c.last_name || c.data?.last_name || c.data?.lastName || null,
+            company_name: c.company_name || c.data?.company_name || c.data?.company || null,
+            opened_at: openedAt,
+            clicked_at: clickedAt,
+            sent_at: sentAt
+          };
+        });
+        setAllContacts(mapped);
       }
     } catch (err) {
       console.error('Error fetching statistics:', err);
@@ -40,7 +57,23 @@ export function StatisticsPage() {
     }
   };
 
-  const filteredLeads = leads.filter(l => 
+  // Reactive calculations
+  const filteredContacts = allContacts.filter((c: any) => {
+    const statusLower = c.status?.toLowerCase();
+    const isSent = statusLower === 'sent' || c.sent_at;
+    if (!isSent) return false;
+    
+    if (selectedCampaignId !== 'all') {
+      return c.campaign_id === selectedCampaignId;
+    }
+    return true;
+  });
+
+  const totalSent = filteredContacts.length;
+  const totalOpened = filteredContacts.filter((c: any) => c.opened_at).length;
+  const totalClicked = filteredContacts.filter((c: any) => c.clicked_at).length;
+
+  const filteredLeads = filteredContacts.filter(l => 
     l.email?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     l.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     l.company_name?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -50,14 +83,32 @@ export function StatisticsPage() {
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
+      {/* Header */}
+      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-border bg-surface">
         <div>
           <h1 className="text-xl font-display font-medium tracking-tight">Campaign Statistics</h1>
           <p className="text-xs text-text-secondary mt-1">Real-time tracking of email opens and link clicks.</p>
         </div>
-        <button onClick={fetchStats} className="btn border border-border text-xs px-4 h-9">
-          Refresh Data
-        </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-text-tertiary">Campaign:</span>
+            <select
+              className="bg-surface border border-border rounded-lg px-3 py-1.5 text-xs outline-none focus:border-primary transition-colors min-w-[200px] text-text-primary"
+              value={selectedCampaignId}
+              onChange={e => setSelectedCampaignId(e.target.value)}
+            >
+              <option value="all">All Campaigns</option>
+              {campaigns.map(c => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button onClick={fetchStats} className="btn border border-border text-xs px-4 h-9">
+            Refresh Data
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-auto p-6 space-y-6">
@@ -70,7 +121,7 @@ export function StatisticsPage() {
               </div>
               <span className="text-sm font-medium">Total Sent</span>
             </div>
-            <div className="text-3xl font-mono font-bold">{stats.sent}</div>
+            <div className="text-3xl font-mono font-bold text-text-primary">{totalSent}</div>
           </div>
 
           <div className="bg-surface border border-border rounded-xl p-5">
@@ -81,9 +132,9 @@ export function StatisticsPage() {
               <span className="text-sm font-medium">Unique Opens</span>
             </div>
             <div className="flex items-baseline gap-3">
-              <div className="text-3xl font-mono font-bold">{stats.opened}</div>
+              <div className="text-3xl font-mono font-bold text-text-primary">{totalOpened}</div>
               <div className="text-sm text-text-tertiary">
-                {stats.sent > 0 ? Math.round((stats.opened / stats.sent) * 100) : 0}% rate
+                {totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0}% rate
               </div>
             </div>
           </div>
@@ -96,9 +147,9 @@ export function StatisticsPage() {
               <span className="text-sm font-medium">Link Clicks / CV Opens</span>
             </div>
             <div className="flex items-baseline gap-3">
-              <div className="text-3xl font-mono font-bold">{stats.clicked}</div>
+              <div className="text-3xl font-mono font-bold text-text-primary">{totalClicked}</div>
               <div className="text-sm text-text-tertiary">
-                {stats.sent > 0 ? Math.round((stats.clicked / stats.sent) * 100) : 0}% rate
+                {totalSent > 0 ? Math.round((totalClicked / totalSent) * 100) : 0}% rate
               </div>
             </div>
           </div>
@@ -118,7 +169,7 @@ export function StatisticsPage() {
                 placeholder="Search leads..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="bg-background border border-border rounded-lg pl-9 pr-4 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary w-64"
+                className="bg-background border border-border rounded-lg pl-9 pr-4 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary w-64 text-text-primary"
               />
             </div>
           </div>

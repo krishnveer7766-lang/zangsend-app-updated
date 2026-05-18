@@ -19,6 +19,7 @@ export default async function (req: VercelRequest, res: VercelResponse) {
             
             if (!activity.opened_at) {
                 await supabase.from('contacts').update({
+                    opened_at: now,
                     data: { ...currentData, activity: { ...activity, opened_at: now } }
                 }).eq('id', cid);
             }
@@ -33,6 +34,7 @@ export default async function (req: VercelRequest, res: VercelResponse) {
             
             if (!activity.clicked_at) {
                 await supabase.from('contacts').update({
+                    clicked_at: now,
                     data: { ...currentData, activity: { ...activity, clicked_at: now } }
                 }).eq('id', cid);
             }

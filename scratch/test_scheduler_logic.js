@@ -1,10 +1,7 @@
-export interface SchedulingResult {
-  contactId: string;
-  scheduled_send_at: string;
-  sender_id: string;
-}
+// test_scheduler_logic.js
+// Verification of the new daily limit scheduling logic
 
-function parseTimeString(timeStr: string): { hour: number; minute: number } {
+function parseTimeString(timeStr) {
   const match = (timeStr || "").match(/(\d+):(\d+)(?:\s*(am|pm))?/i);
   if (!match) return { hour: 9, minute: 0 };
   
@@ -24,23 +21,23 @@ function parseTimeString(timeStr: string): { hour: number; minute: number } {
   };
 }
 
-function getLocalDateString(date: Date): string {
+function getLocalDateString(date) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, '0');
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
 
-export function distributeEmails(
-  contacts: any[],
-  senders: any[],
-  workingHours: { start: string; end: string },
+function distributeEmails(
+  contacts,
+  senders,
+  workingHours,
   maxPerDayPerSender = 45,
-  existingScheduledCounts: Record<string, Record<string, number>> = {}
-): SchedulingResult[] {
+  existingScheduledCounts = {}
+) {
   if (senders.length === 0 || contacts.length === 0) return [];
 
-  const results: SchedulingResult[] = [];
+  const results = [];
   const { hour: startHour, minute: startMin } = parseTimeString(workingHours?.start);
   const { hour: endHour, minute: endMin } = parseTimeString(workingHours?.end);
 
@@ -64,7 +61,7 @@ export function distributeEmails(
     return {
       id: s.id,
       nextTime: now.getTime() + MIN_START_DELAY_MS,
-      sentPerDay: initialCounts as Record<string, number>
+      sentPerDay: initialCounts
     };
   });
 
@@ -182,3 +179,50 @@ export function distributeEmails(
 
   return results;
 }
+
+// Setup test inputs
+const senders = [{ id: 'sender-1', email: 'test@gmail.com' }];
+const workingHours = { start: '09:00', end: '18:00' };
+
+// Create 100 dummy contacts for Run 1
+const contactsRun1 = Array.from({ length: 100 }, (_, index) => ({ id: `contact-${index + 1}` }));
+
+console.log("=== RUN 1: Scheduling 100 emails (0 pre-existing) ===");
+const run1Results = distributeEmails(contactsRun1, senders, workingHours, 45);
+
+// Count scheduled emails per day for Run 1
+const run1Counts = {};
+run1Results.forEach(r => {
+  const dStr = getLocalDateString(new Date(r.scheduled_send_at));
+  run1Counts[dStr] = (run1Counts[dStr] || 0) + 1;
+});
+console.log("Run 1 Counts per Day:", run1Counts);
+
+// Setup pre-existing counts from Run 1 for Run 2
+const existingScheduledCounts = {
+  'sender-1': { ...run1Counts }
+};
+
+// Create another 100 dummy contacts for Run 2
+const contactsRun2 = Array.from({ length: 100 }, (_, index) => ({ id: `contact-${index + 101}` }));
+
+console.log("\n=== RUN 2: Scheduling another 100 emails (with Run 1 counts as pre-existing) ===");
+const run2Results = distributeEmails(contactsRun2, senders, workingHours, 45, existingScheduledCounts);
+
+// Count scheduled emails per day for Run 2
+const run2Counts = {};
+run2Results.forEach(r => {
+  const dStr = getLocalDateString(new Date(r.scheduled_send_at));
+  run2Counts[dStr] = (run2Counts[dStr] || 0) + 1;
+});
+console.log("Run 2 Counts per Day:", run2Counts);
+
+console.log("\n=== Combining counts to verify overall total ===");
+const combinedCounts = {};
+Object.keys(run1Counts).forEach(day => {
+  combinedCounts[day] = (combinedCounts[day] || 0) + run1Counts[day];
+});
+Object.keys(run2Counts).forEach(day => {
+  combinedCounts[day] = (combinedCounts[day] || 0) + run2Counts[day];
+});
+console.log("Combined Total Counts per Day:", combinedCounts);
