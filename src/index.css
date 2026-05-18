@@ -28,45 +28,75 @@
   }
 
   html, body {
-    @apply bg-background text-text-primary font-sans antialiased;
+    @apply bg-background text-text-primary font-sans antialiased overflow-x-hidden;
     /* Subtle noise grain overlay */
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.03'/%3E%3C/svg%3E");
     background-attachment: fixed;
+    -webkit-tap-highlight-color: transparent;
+    scroll-behavior: smooth;
   }
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-display tracking-tight;
+  }
+
+  /* Custom Scrollbar */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-border rounded-full;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-tertiary;
   }
 }
 
 @layer components {
   /* Button Base */
   .btn {
-    @apply inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50;
-    height: 36px;
-    padding: 0 16px;
+    @apply inline-flex items-center justify-center rounded-lg text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary disabled:pointer-events-none disabled:opacity-50 active:scale-[0.97];
+    height: 40px;
+    padding: 0 20px;
   }
   
   .btn-primary {
     @apply bg-primary text-black hover:bg-primary-dim;
+    box-shadow: 0 10px 15px -3px rgba(34, 197, 94, 0.1), 0 4px 6px -4px rgba(34, 197, 94, 0.1);
   }
   
   .btn-secondary {
-    @apply bg-primary-ghost text-primary-text hover:bg-[rgba(34,197,94,0.12)];
+    @apply bg-elevated text-text-primary border border-border hover:bg-surface;
   }
   
   .btn-destructive {
-    @apply border border-status-bounced text-status-bounced hover:bg-[rgba(239,68,68,0.1)];
+    @apply border border-status-bounced text-status-bounced hover:bg-status-bounced/10;
   }
 
   /* Inputs */
   .input-field {
-    @apply flex h-9 w-full rounded-md border border-border bg-surface px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary focus-visible:shadow-[0_0_8px_var(--green-glow)] disabled:cursor-not-allowed disabled:opacity-50;
+    @apply flex h-10 w-full rounded-lg border border-border bg-surface px-4 py-2 text-sm shadow-sm transition-all file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-text-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:border-primary focus-visible:shadow-[0_0_12px_var(--green-glow)] disabled:cursor-not-allowed disabled:opacity-50;
   }
   
   .label {
-    @apply text-[11px] uppercase tracking-[0.08em] text-text-secondary font-medium mb-1.5 block;
+    @apply text-[11px] uppercase tracking-[0.1em] text-text-tertiary font-bold mb-2 block;
   }
+}
+
+/* Safe areas for mobile */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
 }
 
 /* TipTap Rich Text Editor & Render Styles */

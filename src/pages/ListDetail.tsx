@@ -581,87 +581,75 @@ export function ListDetailPage() {
     setSendProgress({ current: 0, total: schedules.length });
 
     try {
-      // Prepare bulk upsert payload
-      const upsertPayload = schedules.map(s => {
-        const contact = withEmail.find(c => c.id === s.contactId)!;
-        const currentData = (contact as any)?.data || {};
-        const nowIso = new Date().toISOString();
-        return {
-          id: s.contactId,
-          list_id: contact.list_id,
-          user_id: contact.user_id || '',
-          email: contact.email,
-          template_id: contact.template_id,
-          attachment_id: contact.attachment_id,
-          status: type === 'draft' ? 'draft' : 'scheduled',
-          scheduled_send_at: type === 'draft' ? null : s.scheduled_send_at,
-          sender_id: s.sender_id,
-          campaign_id: campaignId,
-          sent_at: null,
-          opened_at: null,
-          clicked_at: null,
-          data: {
-            ...currentData,
-            sender_id: s.sender_id,
-            is_draft: type === 'draft',
-            activity: {
-              ...(currentData.activity || {}),
-              scheduled_at: type === 'scheduled' ? nowIso : (currentData.activity?.scheduled_at || null),
-              drafted_at: type === 'draft' ? nowIso : (currentData.activity?.drafted_at || null),
+      // Process database updates in chunks of 3 in parallel to stay safely below the browser's 6-connection limit
+      const DB_CHUNK_SIZE = 3;
+      for (let i = 0; i < schedules.length; i += DB_CHUNK_SIZE) {
+        const chunk = schedules.slice(i, i + DB_CHUNK_SIZE);
+        await Promise.all(chunk.map(async s => {
+          const contact = withEmail.find(c => c.id === s.contactId);
+          if (!contact) return;
+          const currentData = (contact as any)?.data || {};
+          const nowIso = new Date().toISOString();
+          
+          const { error } = await supabase
+            .from('contacts')
+            .update({
+              status: type === 'draft' ? 'draft' : 'scheduled',
+              scheduled_send_at: type === 'draft' ? null : s.scheduled_send_at,
+              sender_id: s.sender_id,
+              campaign_id: campaignId,
               sent_at: null,
               opened_at: null,
-              clicked_at: null
-            }
+              clicked_at: null,
+              data: {
+                ...currentData,
+                sender_id: s.sender_id,
+                is_draft: type === 'draft',
+                activity: {
+                  ...(currentData.activity || {}),
+                  scheduled_at: type === 'scheduled' ? nowIso : (currentData.activity?.scheduled_at || null),
+                  drafted_at: type === 'draft' ? nowIso : (currentData.activity?.drafted_at || null),
+                  sent_at: null,
+                  opened_at: null,
+                  clicked_at: null
+                }
+              }
+            })
+            .eq('id', s.contactId);
+
+          if (error) {
+            throw new Error(`Failed to update contact ${contact.email || s.contactId}: ${error.message}`);
           }
-        };
-      });
 
-      // Update progress initially
-      if (type !== 'draft') {
-        setSendProgress({ current: 0, total: upsertPayload.length });
-      }
-
-      // Perform a single batch upsert for atomicity, speed, and reliability
-      const { error: upsertError } = await supabase
-        .from('contacts')
-        .upsert(upsertPayload);
-
-      if (upsertError) {
-        throw new Error(`Failed to update contacts in database: ${upsertError.message}`);
-      }
-
-      if (type !== 'draft') {
-        setSendProgress({ current: upsertPayload.length, total: upsertPayload.length });
-      }
-
-      // Update local state using the updateContactLocally helper function from useContacts hook
-      schedules.forEach(s => {
-        const contact = withEmail.find(c => c.id === s.contactId);
-        const currentData = (contact as any)?.data || {};
-        const nowIso = new Date().toISOString();
-        updateContactLocally(s.contactId, { 
-          status: type === 'draft' ? 'draft' : 'scheduled', 
-          scheduled_send_at: type === 'draft' ? null : s.scheduled_send_at,
-          sender_id: s.sender_id,
-          campaign_id: campaignId,
-          sent_at: null,
-          opened_at: null,
-          clicked_at: null,
-          data: {
-            ...currentData,
+          // Update local state immediately after database success
+          updateContactLocally(s.contactId, { 
+            status: type === 'draft' ? 'draft' : 'scheduled', 
+            scheduled_send_at: type === 'draft' ? null : s.scheduled_send_at,
             sender_id: s.sender_id,
-            is_draft: type === 'draft',
-            activity: {
-              ...(currentData.activity || {}),
-              scheduled_at: type === 'scheduled' ? nowIso : (currentData.activity?.scheduled_at || null),
-              drafted_at: type === 'draft' ? nowIso : (currentData.activity?.drafted_at || null),
-              sent_at: null,
-              opened_at: null,
-              clicked_at: null
+            campaign_id: campaignId,
+            sent_at: null,
+            opened_at: null,
+            clicked_at: null,
+            data: {
+              ...currentData,
+              sender_id: s.sender_id,
+              is_draft: type === 'draft',
+              activity: {
+                ...(currentData.activity || {}),
+                scheduled_at: type === 'scheduled' ? nowIso : (currentData.activity?.scheduled_at || null),
+                drafted_at: type === 'draft' ? nowIso : (currentData.activity?.drafted_at || null),
+                sent_at: null,
+                opened_at: null,
+                clicked_at: null
+              }
             }
-          } 
-        } as any);
-      });
+          } as any);
+        }));
+
+        if (type !== 'draft') {
+          setSendProgress({ current: Math.min(i + DB_CHUNK_SIZE, schedules.length), total: schedules.length });
+        }
+      }
 
       if (type === 'draft') {
         // Automatically create drafts in Gmail using the edge function
@@ -877,7 +865,7 @@ export function ListDetailPage() {
               <span className="text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-medium bg-primary-ghost text-primary-text">Active</span>
             </div>
             <p className="text-xs text-text-secondary mt-1">
-              {totalCount.toLocaleString()} contacts • {contacts.filter(c => c.status === 'pending').length} pending (this page)
+              {totalCount.toLocaleString()} contacts • {contacts.filter(c => c.status === 'pending').length} pending
             </p>
           </div>
         </div>

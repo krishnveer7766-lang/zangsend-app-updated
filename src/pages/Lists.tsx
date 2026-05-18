@@ -1,8 +1,9 @@
 import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { Upload, MoreVertical, Search, X, ChevronRight } from 'lucide-react';
+import { Upload, MoreVertical, Search, X, ChevronRight, Plus } from 'lucide-react';
 import Papa from 'papaparse';
 import { useLists } from '../hooks/useLists';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export function ListsPage() {
   const { lists, loading, createList, deleteList } = useLists();
@@ -144,15 +145,30 @@ export function ListsPage() {
 
   const filteredLists = lists.filter(l => l.name.toLowerCase().includes(searchQuery.toLowerCase()));
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: {
+      opacity: 1,
+      transition: {
+        staggerChildren: 0.05
+      }
+    }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    show: { opacity: 1, y: 0 }
+  };
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col pb-20 md:pb-0">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-border">
+      <div className="flex-shrink-0 flex items-center justify-between px-6 py-5 border-b border-border bg-surface/30">
         <div>
-          <h1 className="text-xl font-display font-medium tracking-tight">Lists</h1>
-          <p className="text-xs text-text-secondary mt-1">Manage and segment your contact lists.</p>
+          <h1 className="text-2xl font-display font-bold tracking-tight text-text-primary">Lists</h1>
+          <p className="text-xs text-text-secondary mt-1">Manage your contact segments.</p>
         </div>
-        <div className="flex space-x-3">
+        <div className="hidden md:flex space-x-3">
           <input 
             type="file" 
             accept=".csv" 
@@ -172,13 +188,13 @@ export function ListsPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex-shrink-0 flex items-center px-6 py-3 border-b border-border space-x-4 bg-surface">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+      <div className="flex-shrink-0 flex items-center px-4 md:px-6 py-4 border-b border-border bg-surface/50 backdrop-blur-md sticky top-0 z-20">
+        <div className="relative flex-1">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
           <input 
             type="text" 
-            placeholder="Search lists..." 
-            className="input-field pl-9"
+            placeholder="Search your lists..." 
+            className="input-field pl-10 h-10 bg-background/50 border-none ring-1 ring-border focus:ring-primary/50"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -186,147 +202,219 @@ export function ListsPage() {
       </div>
 
       {/* List Grid / Table */}
-      <div className="flex-1 overflow-auto p-6">
+      <div className="flex-1 overflow-auto p-4 md:p-6 custom-scrollbar">
         {loading ? (
-          <div className="flex items-center justify-center h-full text-text-secondary">Loading lists...</div>
-        ) : filteredLists.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full text-text-secondary space-y-4">
-            <p>No lists found. Upload a CSV to get started.</p>
-            <button className="btn btn-primary text-xs h-8" onClick={() => fileInputRef.current?.click()}>
+            <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm font-medium">Loading segments...</span>
+          </div>
+        ) : filteredLists.length === 0 ? (
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="flex flex-col items-center justify-center h-full text-text-secondary space-y-6 text-center max-w-xs mx-auto"
+          >
+            <div className="w-16 h-16 bg-elevated rounded-full flex items-center justify-center border border-border">
+              <Plus className="w-8 h-8 text-text-tertiary" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-text-primary">No lists found</p>
+              <p className="text-xs mt-2">Upload a CSV file to start building your mailing audience.</p>
+            </div>
+            <button className="btn btn-primary text-xs h-9 px-6 rounded-full" onClick={() => fileInputRef.current?.click()}>
               <Upload className="w-3.5 h-3.5 mr-2" /> Upload CSV
             </button>
-          </div>
+          </motion.div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <motion.div 
+            variants={containerVariants}
+            initial="hidden"
+            animate="show"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"
+          >
             {filteredLists.map((list) => (
-              <Link to={`/lists/${list.id}`} key={list.id} className="block group relative bg-surface border border-border rounded-lg p-5 hover:border-primary/50 transition-colors cursor-pointer">
-                
-                <div className="flex justify-between items-start mb-4">
-                  <h3 className="font-medium text-text-primary tracking-tight truncate pr-4">{list.name}</h3>
-                  <div className="relative">
-                    <button 
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        setActiveDropdown(activeDropdown === list.id ? null : list.id);
-                      }} 
-                      className={`text-text-tertiary hover:text-text-primary transition-opacity ${activeDropdown === list.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
-                    >
-                      <MoreVertical className="w-4 h-4" />
-                    </button>
-                    {activeDropdown === list.id && (
-                      <div className="absolute right-0 top-6 bg-surface border border-border shadow-lg rounded py-1 z-20 w-32">
-                        <button 
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleDeleteList(list.id, list.name);
-                          }}
-                          className="w-full text-left px-4 py-2 text-sm text-status-bounced hover:bg-status-bounced/10 transition-colors"
-                        >
-                          Delete List
-                        </button>
-                      </div>
-                    )}
+              <motion.div variants={itemVariants} key={list.id}>
+                <Link 
+                  to={`/lists/${list.id}`} 
+                  className="block group relative bg-surface/40 border border-border rounded-xl p-5 hover:border-primary/40 hover:bg-surface/60 transition-all cursor-pointer active:scale-[0.98]"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-text-primary tracking-tight truncate pr-4 text-base">{list.name}</h3>
+                      <p className="text-[10px] text-text-tertiary mt-0.5 font-mono uppercase tracking-wider">{list.id.split('-')[0]}</p>
+                    </div>
+                    <div className="relative">
+                      <button 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setActiveDropdown(activeDropdown === list.id ? null : list.id);
+                        }} 
+                        className={`p-1.5 rounded-full text-text-tertiary hover:text-text-primary hover:bg-elevated transition-all ${activeDropdown === list.id ? 'opacity-100 bg-elevated' : 'opacity-0 group-hover:opacity-100'}`}
+                      >
+                        <MoreVertical className="w-4 h-4" />
+                      </button>
+                      <AnimatePresence>
+                        {activeDropdown === list.id && (
+                          <motion.div 
+                            initial={{ opacity: 0, scale: 0.9, y: -10 }}
+                            animate={{ opacity: 1, scale: 1, y: 0 }}
+                            exit={{ opacity: 0, scale: 0.9, y: -10 }}
+                            className="absolute right-0 top-10 bg-elevated border border-border shadow-2xl rounded-lg py-1 z-30 w-40 overflow-hidden"
+                          >
+                            <button 
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleDeleteList(list.id, list.name);
+                              }}
+                              className="w-full text-left px-4 py-2.5 text-sm text-status-bounced hover:bg-status-bounced/10 transition-colors flex items-center"
+                            >
+                              <X className="w-3.5 h-3.5 mr-2" /> Delete List
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   </div>
-                </div>
 
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-text-secondary">Contacts</span>
-                    <span className="font-mono">{list.rows}</span>
+                  <div className="grid grid-cols-2 gap-3 mb-5">
+                    <div className="bg-background/40 rounded-lg p-3 border border-border/50">
+                      <span className="text-[10px] uppercase tracking-wider text-text-tertiary block mb-1">Contacts</span>
+                      <span className="text-lg font-mono font-bold text-text-primary">{list.rows}</span>
+                    </div>
+                    <div className="bg-background/40 rounded-lg p-3 border border-border/50">
+                      <span className="text-[10px] uppercase tracking-wider text-text-tertiary block mb-1">Pending</span>
+                      <span className="text-lg font-mono font-bold text-status-pending">{list.pending}</span>
+                    </div>
                   </div>
-                  
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-text-secondary">Pending</span>
-                    <span className="font-mono text-status-pending">{list.pending}</span>
-                  </div>
-                </div>
 
-                <div className="mt-6 flex items-center justify-between">
-                  <span className={`text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-full font-medium ${
-                    list.status === 'Active' ? 'bg-primary-ghost text-primary-text' :
-                    list.status === 'Completed' ? 'bg-border text-text-secondary' :
-                    'bg-border text-text-tertiary'
-                  }`}>
-                    {list.status}
-                  </span>
-                  
-                  <span className="text-xs text-text-tertiary font-mono">
-                    {list.lastSent !== 'Never' ? `Sent ${list.lastSent}` : 'Never Sent'}
-                  </span>
-                </div>
-              </Link>
+                  <div className="flex items-center justify-between pt-4 border-t border-border/50">
+                    <span className={`text-[10px] uppercase tracking-widest px-2.5 py-0.5 rounded-full font-bold ${
+                      list.status === 'Active' ? 'bg-primary-glow text-primary-text border border-primary/20' :
+                      list.status === 'Completed' ? 'bg-border text-text-secondary' :
+                      'bg-border/50 text-text-tertiary'
+                    }`}>
+                      {list.status}
+                    </span>
+                    
+                    <span className="text-[10px] text-text-tertiary font-medium">
+                      {list.lastSent !== 'Never' ? `Last: ${list.lastSent}` : 'Not started'}
+                    </span>
+                  </div>
+                </Link>
+              </motion.div>
             ))}
-          </div>
+          </motion.div>
         )}
       </div>
 
+      {/* Mobile Floating Action Button */}
+      <div className="fixed right-6 bottom-24 md:hidden z-30">
+        <button 
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploading}
+          className="w-14 h-14 bg-primary text-black rounded-full flex items-center justify-center active:scale-90 transition-transform disabled:opacity-50"
+          style={{ boxShadow: '0 20px 25px -5px rgba(34, 197, 94, 0.4), 0 8px 10px -6px rgba(34, 197, 94, 0.4)' }}
+        >
+          {uploading ? (
+            <div className="w-6 h-6 border-2 border-black border-t-transparent rounded-full animate-spin" />
+          ) : (
+            <Plus className="w-7 h-7" />
+          )}
+        </button>
+      </div>
+
       {/* Mapping Modal */}
-      {isMappingModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="bg-surface border border-border rounded-lg shadow-xl w-full max-w-2xl p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-lg font-medium text-text-primary">Map CSV Columns</h2>
-                <p className="text-sm text-text-secondary mt-1">Match your CSV headers to ZangSends fields.</p>
+      <AnimatePresence>
+        {isMappingModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+              onClick={() => setIsMappingModalOpen(false)}
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              className="bg-surface border border-border rounded-2xl shadow-2xl w-full max-w-2xl p-6 relative z-10 overflow-hidden"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-xl font-display font-bold text-text-primary">Map CSV Columns</h2>
+                  <p className="text-xs text-text-secondary mt-1">Configure your contact data schema.</p>
+                </div>
+                <button onClick={() => setIsMappingModalOpen(false)} className="p-2 text-text-tertiary hover:text-text-primary hover:bg-elevated rounded-full">
+                  <X className="w-5 h-5" />
+                </button>
               </div>
-              <button onClick={() => setIsMappingModalOpen(false)} className="text-text-tertiary hover:text-text-primary">
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            
-            <div className="bg-elevated border border-border rounded-lg overflow-hidden">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-surface border-b border-border text-text-secondary">
-                  <tr>
-                    <th className="px-4 py-3 font-medium w-1/3">ZangSends Field</th>
-                    <th className="px-4 py-3 font-medium">CSV Column Header</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {[
-                    { key: 'first_name', label: 'First Name', required: false },
-                    { key: 'last_name', label: 'Last Name', required: false },
-                    { key: 'company_name', label: 'Company', required: false },
-                    { key: 'title', label: 'Job Title', required: false },
-                    { key: 'email', label: 'Email Address', required: true },
-                    { key: 'linkedin_url', label: 'LinkedIn URL', required: true }
-                  ].map(field => (
-                    <tr key={field.key} className="hover:bg-surface transition-colors">
-                      <td className="px-4 py-3 font-medium text-text-primary flex items-center">
-                        {field.label}
-                        {field.required && <span className="ml-1 text-[10px] text-text-tertiary font-normal">(Req*)</span>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <select 
-                          className="w-full bg-background border border-border text-text-primary rounded px-3 py-1.5 focus:border-primary focus:ring-1 focus:ring-primary outline-none"
-                          value={mapping[field.key as keyof typeof mapping]}
-                          onChange={(e) => setMapping({...mapping, [field.key]: e.target.value})}
-                        >
-                          <option value="">-- Ignore this field --</option>
-                          {csvHeaders.map(header => (
-                            <option key={header} value={header}>{header}</option>
-                          ))}
-                        </select>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+              
+              <div className="bg-elevated/50 border border-border rounded-xl overflow-hidden mb-4">
+                <div className="max-h-[40vh] overflow-y-auto custom-scrollbar">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-surface/80 border-b border-border text-text-secondary sticky top-0 z-10 backdrop-blur-md">
+                      <tr>
+                        <th className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wider">Field</th>
+                        <th className="px-4 py-3 font-semibold text-[11px] uppercase tracking-wider">CSV Header</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {[
+                        { key: 'first_name', label: 'First Name', required: false },
+                        { key: 'last_name', label: 'Last Name', required: false },
+                        { key: 'company_name', label: 'Company', required: false },
+                        { key: 'title', label: 'Job Title', required: false },
+                        { key: 'email', label: 'Email Address', required: true },
+                        { key: 'linkedin_url', label: 'LinkedIn URL', required: true }
+                      ].map(field => (
+                        <tr key={field.key} className="hover:bg-surface/30 transition-colors">
+                          <td className="px-4 py-4 font-medium text-text-primary">
+                            <div className="flex flex-col">
+                              <span>{field.label}</span>
+                              {field.required && <span className="text-[9px] text-primary font-bold uppercase tracking-tighter mt-0.5">Required</span>}
+                            </div>
+                          </td>
+                          <td className="px-4 py-4">
+                            <select 
+                              className="w-full bg-background border border-border text-text-primary rounded-lg px-3 py-2 focus:ring-1 focus:ring-primary outline-none transition-all"
+                              value={mapping[field.key as keyof typeof mapping]}
+                              onChange={(e) => setMapping({...mapping, [field.key]: e.target.value})}
+                            >
+                              <option value="">-- Ignore --</option>
+                              {csvHeaders.map(header => (
+                                <option key={header} value={header}>{header}</option>
+                              ))}
+                            </select>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
 
-            <p className="text-xs text-text-tertiary mt-4">* Note: We use LinkedIn URLs to automatically find emails via our Apify Waterfall.</p>
+              <div className="bg-primary/5 border border-primary/10 rounded-lg p-3 flex items-start space-x-3">
+                <div className="p-1 bg-primary/20 rounded-md">
+                  <Plus className="w-3.5 h-3.5 text-primary" />
+                </div>
+                <p className="text-[10px] text-text-secondary leading-relaxed">
+                  Tip: Mapping <span className="text-primary font-bold italic underline">LinkedIn URLs</span> allows us to automatically discover verified emails using our Apify Waterfall engine.
+                </p>
+              </div>
 
-            <div className="mt-6 flex justify-end gap-3">
-              <button onClick={() => setIsMappingModalOpen(false)} className="btn border border-border text-text-secondary hover:text-text-primary px-4">Cancel</button>
-              <button onClick={handleConfirmMapping} className="btn btn-primary px-6 flex items-center">
-                Import {rawCsvData.length} Contacts <ChevronRight className="w-4 h-4 ml-1" />
-              </button>
-            </div>
+              <div className="mt-8 flex justify-end gap-3">
+                <button onClick={() => setIsMappingModalOpen(false)} className="btn text-text-secondary hover:text-text-primary px-4">Cancel</button>
+                <button onClick={handleConfirmMapping} className="btn btn-primary px-8 rounded-full">
+                  Import {rawCsvData.length} Contacts <ChevronRight className="w-4 h-4 ml-1" />
+                </button>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
     </div>
   );
 }

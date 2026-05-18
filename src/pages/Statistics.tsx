@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Mail, Eye, MousePointerClick, Users, Search } from 'lucide-react';
+import { Mail, Eye, MousePointerClick, Users, Search, RefreshCw, BarChart3 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export function StatisticsPage() {
   const [loading, setLoading] = useState(true);
@@ -16,16 +17,12 @@ export function StatisticsPage() {
   const fetchStats = async () => {
     setLoading(true);
     try {
-      // Fetch campaigns
       const { data: cams } = await supabase
         .from('campaigns')
         .select('*')
         .order('sent_at', { ascending: false });
-      if (cams) {
-        setCampaigns(cams);
-      }
+      if (cams) setCampaigns(cams);
 
-      // Fetch contacts
       const { data: contacts, error } = await supabase
         .from('contacts')
         .select('*')
@@ -57,7 +54,6 @@ export function StatisticsPage() {
     }
   };
 
-  // Reactive calculations
   const filteredContacts = allContacts.filter((c: any) => {
     const statusLower = c.status?.toLowerCase();
     const isSent = statusLower === 'sent' || c.sent_at;
@@ -81,160 +77,204 @@ export function StatisticsPage() {
 
   const trackerLeads = filteredLeads.filter(l => l.opened_at || l.clicked_at);
 
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    show: { opacity: 1, transition: { staggerChildren: 0.1 } }
+  };
+
+  const itemVariants = {
+    hidden: { opacity: 0, scale: 0.95 },
+    show: { opacity: 1, scale: 1 }
+  };
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex flex-col pb-20 md:pb-0">
       {/* Header */}
-      <div className="flex-shrink-0 flex items-center justify-between px-6 py-4 border-b border-border bg-surface">
-        <div>
-          <h1 className="text-xl font-display font-medium tracking-tight">Campaign Statistics</h1>
-          <p className="text-xs text-text-secondary mt-1">Real-time tracking of email opens and link clicks.</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-text-tertiary">Campaign:</span>
+      <div className="flex-shrink-0 px-6 py-5 border-b border-border bg-surface/30">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-display font-bold tracking-tight text-text-primary flex items-center gap-2">
+              <BarChart3 className="w-6 h-6 text-primary" />
+              Insights
+            </h1>
+            <p className="text-xs text-text-secondary mt-1">Real-time engagement tracking.</p>
+          </div>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             <select
-              className="bg-surface border border-border rounded-lg px-3 py-1.5 text-xs outline-none focus:border-primary transition-colors min-w-[200px] text-text-primary"
+              className="bg-elevated border border-border rounded-lg px-4 py-2 text-xs outline-none focus:ring-1 focus:ring-primary transition-all text-text-primary"
               value={selectedCampaignId}
               onChange={e => setSelectedCampaignId(e.target.value)}
             >
               <option value="all">All Campaigns</option>
               {campaigns.map(c => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
+                <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            <button 
+              onClick={fetchStats} 
+              className="btn btn-secondary text-xs h-10 px-4 flex items-center gap-2 active:rotate-180 transition-transform duration-500"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span className="sm:hidden">Refresh</span>
+            </button>
           </div>
-          <button onClick={fetchStats} className="btn border border-border text-xs px-4 h-9">
-            Refresh Data
-          </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-auto p-6 space-y-6">
+      <div className="flex-1 overflow-auto p-4 md:p-6 space-y-8 custom-scrollbar">
         {/* Stats Grid */}
-        <div className="grid grid-cols-3 gap-6">
-          <div className="bg-surface border border-border rounded-xl p-5">
-            <div className="flex items-center gap-3 text-text-secondary mb-3">
-              <div className="p-2 bg-primary/10 rounded-lg text-primary">
+        <motion.div 
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-1 sm:grid-cols-3 gap-4 md:gap-6"
+        >
+          <motion.div variants={itemVariants} className="bg-surface/50 border border-border rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center gap-3 text-text-tertiary mb-4">
+              <div className="p-2 bg-primary/10 rounded-xl text-primary">
                 <Mail className="w-5 h-5" />
               </div>
-              <span className="text-sm font-medium">Total Sent</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider">Delivered</span>
             </div>
-            <div className="text-3xl font-mono font-bold text-text-primary">{totalSent}</div>
-          </div>
+            <div className="text-4xl font-mono font-bold text-text-primary tracking-tighter">{totalSent}</div>
+          </motion.div>
 
-          <div className="bg-surface border border-border rounded-xl p-5">
-            <div className="flex items-center gap-3 text-status-opened mb-3">
-              <div className="p-2 bg-status-opened/10 rounded-lg">
+          <motion.div variants={itemVariants} className="bg-surface/50 border border-border rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center gap-3 text-status-opened mb-4">
+              <div className="p-2 bg-status-opened/10 rounded-xl">
                 <Eye className="w-5 h-5" />
               </div>
-              <span className="text-sm font-medium">Unique Opens</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider">Unique Opens</span>
             </div>
             <div className="flex items-baseline gap-3">
-              <div className="text-3xl font-mono font-bold text-text-primary">{totalOpened}</div>
-              <div className="text-sm text-text-tertiary">
-                {totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0}% rate
+              <div className="text-4xl font-mono font-bold text-text-primary tracking-tighter">{totalOpened}</div>
+              <div className="text-xs font-bold text-status-opened bg-status-opened/10 px-2 py-0.5 rounded-full">
+                {totalSent > 0 ? Math.round((totalOpened / totalSent) * 100) : 0}%
               </div>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="bg-surface border border-border rounded-xl p-5">
-            <div className="flex items-center gap-3 text-primary mb-3">
-              <div className="p-2 bg-primary/10 rounded-lg">
+          <motion.div variants={itemVariants} className="bg-surface/50 border border-border rounded-2xl p-6 shadow-sm">
+            <div className="flex items-center gap-3 text-primary mb-4">
+              <div className="p-2 bg-primary/10 rounded-xl">
                 <MousePointerClick className="w-5 h-5" />
               </div>
-              <span className="text-sm font-medium">Link Clicks / CV Opens</span>
+              <span className="text-[11px] font-bold uppercase tracking-wider">Engagements</span>
             </div>
             <div className="flex items-baseline gap-3">
-              <div className="text-3xl font-mono font-bold text-text-primary">{totalClicked}</div>
-              <div className="text-sm text-text-tertiary">
-                {totalSent > 0 ? Math.round((totalClicked / totalSent) * 100) : 0}% rate
+              <div className="text-4xl font-mono font-bold text-text-primary tracking-tighter">{totalClicked}</div>
+              <div className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+                {totalSent > 0 ? Math.round((totalClicked / totalSent) * 100) : 0}%
               </div>
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
 
-        {/* Leads Table */}
-        <div className="bg-surface border border-border rounded-xl overflow-hidden">
-          <div className="px-5 py-4 border-b border-border flex items-center justify-between bg-elevated/30">
-            <h2 className="text-sm font-semibold flex items-center gap-2">
-              <Users className="w-4 h-4 text-text-tertiary" />
-              Detailed Lead Tracking
+        {/* Lead Tracking Section */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <h2 className="text-lg font-display font-bold flex items-center gap-2">
+              <Users className="w-5 h-5 text-text-tertiary" />
+              Recent Engagement
             </h2>
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+            <div className="relative w-full sm:w-64">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
               <input 
                 type="text"
                 placeholder="Search leads..."
                 value={searchQuery}
                 onChange={e => setSearchQuery(e.target.value)}
-                className="bg-background border border-border rounded-lg pl-9 pr-4 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-primary w-64 text-text-primary"
+                className="input-field pl-10 h-10 w-full"
               />
             </div>
           </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-border bg-elevated/10">
-                  <th className="px-5 py-3 text-[10px] uppercase tracking-wider font-bold text-text-tertiary">Lead</th>
-                  <th className="px-5 py-3 text-[10px] uppercase tracking-wider font-bold text-text-tertiary">Company</th>
-                  <th className="px-5 py-3 text-[10px] uppercase tracking-wider font-bold text-text-tertiary text-center">Status</th>
-                  <th className="px-5 py-3 text-[10px] uppercase tracking-wider font-bold text-text-tertiary">Last Opened</th>
-                  <th className="px-5 py-3 text-[10px] uppercase tracking-wider font-bold text-text-tertiary">Link Clicked</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {loading ? (
-                  <tr><td colSpan={5} className="px-5 py-20 text-center text-text-tertiary">Loading statistics...</td></tr>
-                ) : trackerLeads.length === 0 ? (
-                  <tr><td colSpan={5} className="px-5 py-20 text-center text-text-tertiary">No engagement tracked yet.</td></tr>
-                ) : trackerLeads.map(lead => (
-                  <tr key={lead.id} className="hover:bg-elevated/5 transition-colors group">
-                    <td className="px-5 py-4">
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium text-text-primary">
-                          {lead.first_name} {lead.last_name || ''}
-                        </span>
-                        <span className="text-xs text-text-tertiary">{lead.email}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-4">
-                      <span className="text-xs text-text-secondary">{lead.company_name || '—'}</span>
-                    </td>
-                    <td className="px-5 py-4 text-center">
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                        lead.clicked_at ? 'bg-primary/20 text-primary' : 
-                        lead.opened_at ? 'bg-status-opened/20 text-status-opened' : 'bg-text-tertiary/10 text-text-tertiary'
-                      }`}>
-                        {lead.clicked_at ? 'CLICKED' : lead.opened_at ? 'OPENED' : 'SENT'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-4">
-                      {lead.opened_at ? (
-                        <div className="flex flex-col">
-                          <span className="text-xs text-text-secondary">{new Date(lead.opened_at).toLocaleDateString()}</span>
-                          <span className="text-[10px] text-text-tertiary">{new Date(lead.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-text-tertiary italic">Not opened yet</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-4">
-                      {lead.clicked_at ? (
-                        <div className="flex flex-col">
-                          <span className="text-xs text-primary font-medium">{new Date(lead.clicked_at).toLocaleDateString()}</span>
-                          <span className="text-[10px] text-primary/70">{new Date(lead.clicked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-text-tertiary">No clicks</span>
-                      )}
-                    </td>
+          {/* Desktop Table / Mobile Cards */}
+          <div className="bg-surface/30 border border-border rounded-2xl overflow-hidden">
+            <div className="hidden md:block">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-border bg-elevated/20">
+                    <th className="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-text-tertiary">Lead</th>
+                    <th className="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-text-tertiary">Company</th>
+                    <th className="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-text-tertiary text-center">Status</th>
+                    <th className="px-6 py-4 text-[10px] uppercase tracking-widest font-bold text-text-tertiary">Activity</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-border/50">
+                  {loading ? (
+                    <tr><td colSpan={4} className="px-6 py-20 text-center text-text-tertiary">Analyzing data...</td></tr>
+                  ) : trackerLeads.length === 0 ? (
+                    <tr><td colSpan={4} className="px-6 py-20 text-center text-text-tertiary">No engagement recorded yet.</td></tr>
+                  ) : trackerLeads.map(lead => (
+                    <tr key={lead.id} className="hover:bg-elevated/10 transition-colors group">
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-sm font-semibold text-text-primary group-hover:text-primary transition-colors">
+                            {lead.first_name} {lead.last_name || ''}
+                          </span>
+                          <span className="text-xs text-text-tertiary">{lead.email}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-xs text-text-secondary">{lead.company_name || '—'}</span>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span className={`text-[9px] font-black tracking-widest px-2 py-0.5 rounded-md ${
+                          lead.clicked_at ? 'bg-primary/20 text-primary border border-primary/20' : 
+                          lead.opened_at ? 'bg-status-opened/20 text-status-opened border border-status-opened/20' : 'bg-border text-text-tertiary'
+                        }`}>
+                          {lead.clicked_at ? 'CLICKED' : lead.opened_at ? 'OPENED' : 'SENT'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-xs text-text-secondary">
+                            {lead.clicked_at ? new Date(lead.clicked_at).toLocaleDateString() : 
+                             lead.opened_at ? new Date(lead.opened_at).toLocaleDateString() : '—'}
+                          </span>
+                          <span className="text-[10px] text-text-tertiary">
+                            {lead.clicked_at ? new Date(lead.clicked_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 
+                             lead.opened_at ? new Date(lead.opened_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''}
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Cards */}
+            <div className="md:hidden divide-y divide-border/50">
+              {loading ? (
+                <div className="p-10 text-center text-text-tertiary">Syncing stats...</div>
+              ) : trackerLeads.length === 0 ? (
+                <div className="p-10 text-center text-text-tertiary">No activity yet.</div>
+              ) : trackerLeads.map(lead => (
+                <div key={lead.id} className="p-5 active:bg-elevated/20 transition-colors">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <div className="text-sm font-bold text-text-primary">{lead.first_name} {lead.last_name || ''}</div>
+                      <div className="text-[10px] text-text-tertiary mt-0.5">{lead.email}</div>
+                    </div>
+                    <span className={`text-[8px] font-black tracking-widest px-1.5 py-0.5 rounded ${
+                      lead.clicked_at ? 'bg-primary/20 text-primary' : 
+                      lead.opened_at ? 'bg-status-opened/20 text-status-opened' : 'bg-border text-text-tertiary'
+                    }`}>
+                      {lead.clicked_at ? 'CLICKED' : 'OPENED'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[10px]">
+                    <span className="text-text-secondary">{lead.company_name || 'Individual'}</span>
+                    <span className="text-text-tertiary">
+                      {lead.clicked_at ? new Date(lead.clicked_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' }) : 
+                       new Date(lead.opened_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

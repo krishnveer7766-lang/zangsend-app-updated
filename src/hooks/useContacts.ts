@@ -27,7 +27,7 @@ export type Contact = {
   campaign?: { name: string } | null;
 };
 
-export const PAGE_SIZE = 100;
+export const PAGE_SIZE = 1000000; // Large page size to automatically disable pagination UI
 
 export function useContacts(listId?: string) {
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -44,8 +44,6 @@ export function useContacts(listId?: string) {
 
     try {
       setLoading(true);
-      const from = (page - 1) * PAGE_SIZE;
-      const to = from + PAGE_SIZE - 1;
 
       const { data, error, count } = await supabase
         .from('contacts')
@@ -55,8 +53,7 @@ export function useContacts(listId?: string) {
           attachment:attachments(filename, storage_path)
         `, { count: 'exact' })
         .eq('list_id', listId)
-        .order('created_at', { ascending: false })
-        .range(from, to);
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
 
